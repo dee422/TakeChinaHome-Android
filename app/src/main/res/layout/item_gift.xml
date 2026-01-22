@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/giftDate"
+        android:layout_width="60dp"
+        android:layout_height="wrap_content"
+        android:text="正月\n十五"
+        android:gravity="center"
+        android:textColor="#C0392B"
+        android:textStyle="bold" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="40dp"
+        android:background="#D5C4A1"
+        android:layout_marginHorizontal="12dp" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/giftName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="青釉莲花尊"
+            android:textColor="#333333"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/giftDesc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="定制理由：上元佳节，平安喜乐"
+            android:textColor="#999999"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>
