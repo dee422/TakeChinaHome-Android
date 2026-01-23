@@ -1,6 +1,7 @@
 package com.dee.android.pbl.takechinahome
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -14,14 +15,17 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit // 必须导入这个用于 KTX 优化
+import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.snackbar.Snackbar
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.launch
-import androidx.core.graphics.toColorInt
 
 class HomeActivity : AppCompatActivity() {
 
@@ -29,6 +33,7 @@ class HomeActivity : AppCompatActivity() {
     private val myGifts = mutableListOf<Gift>()
     private var mediaPlayer: MediaPlayer? = null
     private lateinit var itemTouchHelper: ItemTouchHelper
+    private val gson = Gson()
 
     // 【性能优化】：将 Paint 提取为成员变量，避免在 onChildDraw 中重复创建
     private val deletePaint = Paint().apply {
@@ -40,30 +45,29 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
-        // 1. 初始化 BGM
         startBGM()
 
-        // 2. 初始化 RecyclerView
         val recyclerView = findViewById<RecyclerView>(R.id.giftRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
-        // 3. 初始化 ItemTouchHelper 逻辑
         setupTouchHelper(recyclerView)
 
-        // 4. 初始化 Adapter，并设置长按触发滑动
         adapter = GiftAdapter(myGifts) { viewHolder ->
             itemTouchHelper.startSwipe(viewHolder)
         }
         recyclerView.adapter = adapter
 
-        // 5. 加载数据
-        loadGiftsFromServer()
+        // 优先从本地缓存加载，实现“退出不重置”
+        loadCachedGifts()
 
-        // 6. 下拉刷新逻辑
+        // 只有本地没数据时才去云端加载初始数据
+        if (myGifts.isEmpty()) {
+            loadGiftsFromServer()
+        }
+
         val swipeRefreshLayout = findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
         swipeRefreshLayout.setColorSchemeColors("#8B4513".toColorInt())
         swipeRefreshLayout.setOnRefreshListener {
-            // 模拟网络延迟
             Handler(Looper.getMainLooper()).postDelayed({
                 refreshGifts(swipeRefreshLayout, recyclerView)
             }, 1500)
@@ -72,9 +76,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupTouchHelper(recyclerView: RecyclerView) {
         val callback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
-
             override fun isItemViewSwipeEnabled(): Boolean = false
-
             override fun onMove(r: RecyclerView, v: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
@@ -98,9 +100,7 @@ class HomeActivity : AppCompatActivity() {
             override fun onChildDraw(c: Canvas, rv: RecyclerView, vh: RecyclerView.ViewHolder, dX: Float, dY: Float, actionState: Int, isCurrentlyActive: Boolean) {
                 val itemView = vh.itemView
                 if (dX < 0) {
-                    // 使用预先创建的 deletePaint 绘制背景
                     c.drawRect(RectF(itemView.right.toFloat() + dX, itemView.top.toFloat(), itemView.right.toFloat(), itemView.bottom.toFloat()), deletePaint)
-
                     ContextCompat.getDrawable(this@HomeActivity, R.drawable.ic_discard)?.let { icon ->
                         val iconSize = (itemView.height * 0.25).toInt()
                         val margin = (itemView.height - iconSize) / 2
@@ -112,18 +112,17 @@ class HomeActivity : AppCompatActivity() {
                 super.onChildDraw(c, rv, vh, dX, dY, actionState, isCurrentlyActive)
             }
         }
-
         itemTouchHelper = ItemTouchHelper(callback)
         itemTouchHelper.attachToRecyclerView(recyclerView)
     }
 
     private fun performDelete(position: Int, deletedGift: Gift, recyclerView: RecyclerView) {
         myGifts.removeAt(position)
+        cacheGiftsLocally() // 数据变动立即持久化
         adapter.notifyItemRemoved(position)
 
         lifecycleScope.launch {
             try {
-                // 假设删除接口，若没有可先注释
                 RetrofitClient.instance.deleteGift(deletedGift.id)
             } catch (_: Exception) {
                 Log.e("TakeChinaHome", "云端同步失败")
@@ -133,6 +132,7 @@ class HomeActivity : AppCompatActivity() {
         Snackbar.make(findViewById(android.R.id.content), "已移出：${deletedGift.name}", Snackbar.LENGTH_LONG)
             .setAction("撤销") {
                 myGifts.add(position, deletedGift)
+                cacheGiftsLocally() // 撤销后也要同步持久化
                 adapter.notifyItemInserted(position)
                 recyclerView.scrollToPosition(position)
             }.show()
@@ -146,6 +146,7 @@ class HomeActivity : AppCompatActivity() {
                 myGifts.addAll(response)
                 @SuppressLint("NotifyDataSetChanged")
                 adapter.notifyDataSetChanged()
+                cacheGiftsLocally() // 云端数据拉取成功后缓存一份
             } catch (e: Exception) {
                 Log.e("TakeChinaHome", "API异常: ${e.message}")
                 Toast.makeText(this@HomeActivity, "无法连接到画卷服务器", Toast.LENGTH_SHORT).show()
@@ -155,7 +156,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun refreshGifts(swipe: SwipeRefreshLayout, rv: RecyclerView) {
         val newItem = Gift(
-            id = System.currentTimeMillis().toInt(), // 随机ID
+            id = System.currentTimeMillis().toInt(),
             deadline = "2026-05-05",
             name = "官窑八角杯",
             spec = "高5cm / 青瓷",
@@ -167,15 +168,14 @@ class HomeActivity : AppCompatActivity() {
         )
         myGifts.add(0, newItem)
         adapter.notifyItemInserted(0)
+        cacheGiftsLocally() // 刷新增加数据后持久化
         rv.scrollToPosition(0)
         swipe.isRefreshing = false
         Toast.makeText(this, "云端画卷已更新", Toast.LENGTH_SHORT).show()
     }
 
     private fun startBGM() {
-        // 防止重复播放导致卡顿
         if (mediaPlayer != null) return
-
         try {
             mediaPlayer = MediaPlayer.create(this, R.raw.bg_music)
             mediaPlayer?.apply {
@@ -185,6 +185,40 @@ class HomeActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             Log.e("TakeChinaHome", "BGM加载异常", e)
+        }
+    }
+
+    // 保存联系方式逻辑（推荐使用 KTX 扩展函数 edit { ... }）
+    private fun saveContactInfo(contact: String) {
+        getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
+            putString("saved_contact", contact)
+        }
+    }
+
+    private fun getSavedContact(): String {
+        return getSharedPreferences("UserPrefs", MODE_PRIVATE).getString("saved_contact", "") ?: ""
+    }
+
+    private fun cacheGiftsLocally() {
+        val json = gson.toJson(myGifts)
+        getSharedPreferences("DataCache", Context.MODE_PRIVATE).edit {
+            putString("cached_gifts", json)
+        }
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    private fun loadCachedGifts() {
+        val json = getSharedPreferences("DataCache", Context.MODE_PRIVATE).getString("cached_gifts", null)
+        if (!json.isNullOrEmpty()) {
+            try {
+                val type = object : TypeToken<MutableList<Gift>>() {}.type
+                val cachedList: MutableList<Gift> = gson.fromJson(json, type)
+                myGifts.clear()
+                myGifts.addAll(cachedList)
+                adapter.notifyDataSetChanged()
+            } catch (e: Exception) {
+                Log.e("TakeChinaHome", "加载缓存失败: ${e.message}")
+            }
         }
     }
 
