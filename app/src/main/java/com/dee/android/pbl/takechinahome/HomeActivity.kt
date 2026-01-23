@@ -155,23 +155,30 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun refreshGifts(swipe: SwipeRefreshLayout, rv: RecyclerView) {
-        val newItem = Gift(
-            id = System.currentTimeMillis().toInt(),
-            deadline = "2026-05-05",
-            name = "官窑八角杯",
-            spec = "高5cm / 青瓷",
-            desc = "雨过天晴云破处，者般颜色做将来",
-            images = listOf(
-                "https://ichessgeek.com/takechinahome/gift100_1.jpg",
-                "https://ichessgeek.com/takechinahome/gift100_2.jpg",
-                "https://ichessgeek.com/takechinahome/gift100_3.jpg")
-        )
-        myGifts.add(0, newItem)
-        adapter.notifyItemInserted(0)
-        cacheGiftsLocally() // 刷新增加数据后持久化
-        rv.scrollToPosition(0)
-        swipe.isRefreshing = false
-        Toast.makeText(this, "云端画卷已更新", Toast.LENGTH_SHORT).show()
+        // 停止手动添加“八角杯”，改为调用现有的云端加载逻辑
+        lifecycleScope.launch {
+            try {
+                val response = RetrofitClient.instance.getGifts()
+                if (response.isNotEmpty()) {
+                    myGifts.clear()
+                    myGifts.addAll(response)
+
+                    // 1. 更新 UI
+                    adapter.notifyDataSetChanged()
+
+                    // 2. 覆盖本地过时的缓存，实现“恢复”功能
+                    cacheGiftsLocally()
+
+                    Toast.makeText(this@HomeActivity, "画卷已同步至云端最新状态", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e("TakeChinaHome", "同步失败: ${e.message}")
+                Toast.makeText(this@HomeActivity, "同步失败，请检查网络", Toast.LENGTH_SHORT).show()
+            } finally {
+                // 无论成功失败，都要停止刷新动画
+                swipe.isRefreshing = false
+            }
+        }
     }
 
     private fun startBGM() {

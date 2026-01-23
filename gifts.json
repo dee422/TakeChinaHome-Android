@@ -1,30 +1,32 @@
 [
   {
     "id": 1,
-    "deadline": "2026-02-12",
-    "name": "汝窑茶承",
-    "spec": "直径30cm / 青瓷",
-    "desc": "雨过天青云破处。此茶承承袭宋代审美，釉面温润如玉，开片错落有致，盛放茶盏间尽显雅致。",
+    "deadline": "2026-05-05",
+    "name": "官窑八角杯",
+    "spec": "高5cm / 青瓷",
+    "desc": "雨过天晴云破处，者般颜色做将来。八角造型刚劲有力，釉色润泽如酥，完美复刻宋代官窑的简约与风骨。",
     "images": [
-      "https://ichessgeek.com/takechinahome/gift1_1.jpg"
+      "https://ichessgeek.com/takechinahome/gift1_1.jpg",
+      "https://ichessgeek.com/takechinahome/gift1_2.jpg",
+      "https://ichessgeek.com/takechinahome/gift1_3.jpg"
     ]
   },
   {
     "id": 2,
-    "deadline": "2026-03-01",
-    "name": "汝窑茶海",
-    "spec": "高9cm / 青瓷",
-    "desc": "晨光初照，茶香渐起。器型简约圆润，出水断水果敢，如君子之交，清冽而有分寸。",
+    "deadline": "2026-02-12",
+    "name": "汝窑茶承",
+    "spec": "直径30cm / 青瓷",
+    "desc": "承袭宋代极致审美，釉面温润如脂，开片错落有致。盛放茶盏间，尽显文人雅致与席间禅意。",
     "images": [
       "https://ichessgeek.com/takechinahome/gift2_1.jpg"
     ]
   },
   {
     "id": 3,
-    "deadline": "2026-02-12",
-    "name": "影青刻花茶海",
+    "deadline": "2026-03-01",
+    "name": "汝窑茶海",
     "spec": "高9cm / 青瓷",
-    "desc": "如冰类玉，刻花若隐若现。影青釉色在光影下变换莫测，将江南水乡的灵动凝聚于方寸茶器之中。",
+    "desc": "晨光初照，茶香渐起。器型简约圆润，出水断水果敢顺畅，如君子之交，清冽而有分寸。",
     "images": [
       "https://ichessgeek.com/takechinahome/gift3_1.jpg"
     ]
@@ -32,9 +34,9 @@
   {
     "id": 4,
     "deadline": "2026-02-12",
-    "name": "影青刻花杯",
-    "spec": "高4cm / 青瓷",
-    "desc": "轻巧灵动，入指微凉。杯沿圆滑，内壁刻花精巧，适合静候一盏新芽，观察茶汤在青影间的波动。",
+    "name": "影青刻花茶海",
+    "spec": "高9cm / 青瓷",
+    "desc": "如冰类玉，刻花若隐若现。影青釉色在光影变换间灵动莫测，将江南水乡的韵味凝聚于方寸之间。",
     "images": [
       "https://ichessgeek.com/takechinahome/gift4_1.jpg"
     ]
@@ -42,9 +44,9 @@
   {
     "id": 5,
     "deadline": "2026-02-12",
-    "name": "影青刻花茶海",
-    "spec": "高10cm / 青瓷",
-    "desc": "素雅大方，器型挺拔。手工刻制的花纹随着倾注的茶水泛起涟漪，是茶席间静谧而夺目的存在。",
+    "name": "影青刻花杯",
+    "spec": "高4cm / 青瓷",
+    "desc": "轻巧灵动，入指微凉。杯沿圆滑，内壁刻花精巧，适合静候一盏新芽，细观茶汤在青影间的波动。",
     "images": [
       "https://ichessgeek.com/takechinahome/gift5_1.jpg"
     ]
@@ -52,11 +54,21 @@
   {
     "id": 6,
     "deadline": "2026-02-12",
-    "name": "影青刻花杯",
-    "spec": "高5cm / 青瓷",
-    "desc": "一盏茶，一卷书。加高设计的杯身更利于聚拢茶香，影青的澄澈让人在饮茶时亦能感受到岁月的宁静。",
+    "name": "影青刻花茶海（高款）",
+    "spec": "高10cm / 青瓷",
+    "desc": "素雅大方，器型挺拔。手工刻制的花纹随茶水倾注而泛起涟漪，是茶席间静谧而夺目的存在。",
     "images": [
       "https://ichessgeek.com/takechinahome/gift6_1.jpg"
+    ]
+  },
+  {
+    "id": 7,
+    "deadline": "2026-02-12",
+    "name": "影青刻花杯（高款）",
+    "spec": "高5cm / 青瓷",
+    "desc": "一盏茶，一卷书。加高杯身更利于聚拢茶香，影青的澄澈让人在饮茶之余，亦能感受到岁月的宁静。",
+    "images": [
+      "https://ichessgeek.com/takechinahome/gift7_1.jpg"
     ]
   }
 ]
