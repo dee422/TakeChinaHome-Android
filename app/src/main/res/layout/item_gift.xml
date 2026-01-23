@@ -1,46 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="16dp"
-    android:gravity="center_vertical">
-
-    <TextView
-        android:id="@+id/giftDate"
-        android:layout_width="60dp"
-        android:layout_height="wrap_content"
-        android:text="正月\n十五"
-        android:gravity="center"
-        android:textColor="#C0392B"
-        android:textStyle="bold" />
-
-    <View
-        android:layout_width="1dp"
-        android:layout_height="40dp"
-        android:background="#D5C4A1"
-        android:layout_marginHorizontal="12dp" />
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginVertical="8dp"
+    app:cardBackgroundColor="#FCF9F2"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="3dp">
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/giftNameText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#2C3E50"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                tools:text="汝窑茶承" />
+
+            <TextView
+                android:id="@+id/giftDeadlineText"
+                android:layout_toEndOf="@id/giftNameText"
+                android:layout_marginStart="8dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="#10B22222"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:textColor="#B22222"
+                android:textSize="11sp"
+                tools:text="截止日期: 2026-02-12" />
+        </RelativeLayout>
 
         <TextView
-            android:id="@+id/giftName"
-            android:layout_width="wrap_content"
+            android:id="@+id/giftSpecText"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="青釉莲花尊"
-            android:textColor="#333333"
-            android:textSize="18sp" />
+            android:layout_marginTop="4dp"
+            android:textColor="#7F8C8D"
+            android:textSize="13sp"
+            tools:text="规格：直径30cm / 青瓷" />
 
         <TextView
-            android:id="@+id/giftDesc"
-            android:layout_width="wrap_content"
+            android:id="@+id/giftDescText"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="定制理由：上元佳节，平安喜乐"
-            android:textColor="#999999"
-            android:textSize="12sp" />
+            android:layout_marginTop="10dp"
+            android:lineSpacingExtra="5dp"
+            android:textColor="#34495E"
+            android:textSize="14sp"
+            tools:text="雨过天青云破处。此茶承承袭宋代审美，釉面温润如玉..." />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/imageCarouselRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="140dp"
+            android:layout_marginTop="14dp"
+            android:clipToPadding="false"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:listitem="@layout/item_image"
+            tools:orientation="horizontal" />
+
     </LinearLayout>
-</LinearLayout>
+</androidx.cardview.widget.CardView>
