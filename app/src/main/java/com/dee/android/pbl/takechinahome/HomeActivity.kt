@@ -35,7 +35,7 @@ class HomeActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
     private lateinit var itemTouchHelper: ItemTouchHelper
     private val gson = Gson()
-    private var tvEmptyHint: TextView? = null // 提示文字，加问号防止报错
+    private var tvEmptyHint: TextView? = null
 
     private val deletePaint = Paint().apply {
         color = "#B22222".toColorInt()
@@ -47,8 +47,6 @@ class HomeActivity : AppCompatActivity() {
         setContentView(R.layout.activity_home)
 
         startBGM()
-
-        // 绑定提示文字（需先在 XML 中定义 id）
         tvEmptyHint = findViewById(R.id.tvEmptyHint)
 
         val recyclerView = findViewById<RecyclerView>(R.id.giftRecyclerView)
@@ -56,26 +54,23 @@ class HomeActivity : AppCompatActivity() {
 
         setupTouchHelper(recyclerView)
 
-        // 核心修正：暂时改回 2 个参数，匹配你当前的 GiftAdapter.kt
+        // 绑定三个参数：列表、长按逻辑、点击逻辑
         adapter = GiftAdapter(myGifts, { viewHolder ->
             itemTouchHelper.startSwipe(viewHolder)
         }, { gift ->
-            showGiftDetailDialog(gift) // 点击时弹出详情
+            showGiftDetailDialog(gift)
         })
         recyclerView.adapter = adapter
 
-        // 1. 加载本地缓存
+        // 1. 优先加载本地缓存
         loadCachedGifts()
 
-        // 2. 只有在从未同步过且本地确实没数据时才同步
+        // 2. 只有第一次安装且本地为空时才自动同步
         val prefs = getSharedPreferences("DataCache", MODE_PRIVATE)
-        val isFirstRun = prefs.getBoolean("is_first_run", true)
-
-        if (isFirstRun && myGifts.isEmpty()) {
+        if (prefs.getBoolean("is_first_run", true) && myGifts.isEmpty()) {
             loadGiftsFromServer(isInitial = true)
         }
 
-        // 初始检查是否显示“下拉同步”提示
         updateEmptyView()
 
         val swipeRefreshLayout = findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
@@ -85,13 +80,16 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    // 更新空列表提示逻辑
+    private fun showGiftDetailDialog(gift: Gift) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(gift.name)
+            .setMessage("【规格】${gift.spec}\n\n${gift.desc}")
+            .setPositiveButton("合上画卷", null)
+            .show()
+    }
+
     private fun updateEmptyView() {
-        if (myGifts.isEmpty()) {
-            tvEmptyHint?.visibility = View.VISIBLE
-        } else {
-            tvEmptyHint?.visibility = View.GONE
-        }
+        tvEmptyHint?.visibility = if (myGifts.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun setupTouchHelper(recyclerView: RecyclerView) {
@@ -106,15 +104,12 @@ class HomeActivity : AppCompatActivity() {
                 AlertDialog.Builder(this@HomeActivity)
                     .setTitle("移出画卷")
                     .setMessage("确定要将「${giftToDelete.name}」移出您的岁时礼序吗？")
-                    .setPositiveButton("确定") { _, _ ->
-                        performDelete(position, giftToDelete)
-                    }
+                    .setPositiveButton("确定") { _, _ -> performDelete(position, giftToDelete) }
                     .setNegativeButton("取消") { dialog, _ ->
                         adapter.notifyItemChanged(position)
                         dialog.dismiss()
                     }
-                    .setCancelable(false)
-                    .show()
+                    .setCancelable(false).show()
             }
 
             override fun onChildDraw(c: Canvas, rv: RecyclerView, vh: RecyclerView.ViewHolder, dX: Float, dY: Float, actionState: Int, isCurrentlyActive: Boolean) {
@@ -163,13 +158,9 @@ class HomeActivity : AppCompatActivity() {
                 updateEmptyView()
 
                 if (isInitial) {
-                    getSharedPreferences("DataCache", MODE_PRIVATE).edit {
-                        putBoolean("is_first_run", false)
-                    }
+                    getSharedPreferences("DataCache", MODE_PRIVATE).edit { putBoolean("is_first_run", false) }
                 }
-            } catch (e: Exception) {
-                Log.e("TakeChinaHome", "API异常: ${e.message}")
-            }
+            } catch (e: Exception) { Log.e("TakeChinaHome", "API异常: ${e.message}") }
         }
     }
 
@@ -188,9 +179,7 @@ class HomeActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 Toast.makeText(this@HomeActivity, "同步失败，请检查网络", Toast.LENGTH_SHORT).show()
-            } finally {
-                swipe.isRefreshing = false
-            }
+            } finally { swipe.isRefreshing = false }
         }
     }
 
@@ -198,21 +187,13 @@ class HomeActivity : AppCompatActivity() {
         if (mediaPlayer != null) return
         try {
             mediaPlayer = MediaPlayer.create(this, R.raw.bg_music)
-            mediaPlayer?.apply {
-                isLooping = true
-                setVolume(0.6f, 0.6f)
-                start()
-            }
-        } catch (e: Exception) {
-            Log.e("TakeChinaHome", "BGM加载异常", e)
-        }
+            mediaPlayer?.apply { isLooping = true; setVolume(0.6f, 0.6f); start() }
+        } catch (e: Exception) { Log.e("TakeChinaHome", "BGM加载异常", e) }
     }
 
     private fun cacheGiftsLocally() {
         val json = gson.toJson(myGifts)
-        getSharedPreferences("DataCache", Context.MODE_PRIVATE).edit {
-            putString("cached_gifts", json)
-        }
+        getSharedPreferences("DataCache", Context.MODE_PRIVATE).edit { putString("cached_gifts", json) }
     }
 
     @SuppressLint("NotifyDataSetChanged")
@@ -225,22 +206,8 @@ class HomeActivity : AppCompatActivity() {
                 myGifts.clear()
                 myGifts.addAll(cachedList)
                 adapter.notifyDataSetChanged()
-            } catch (e: Exception) {
-                Log.e("TakeChinaHome", "加载缓存失败")
-            }
+            } catch (e: Exception) { Log.e("TakeChinaHome", "加载缓存失败") }
         }
-    }
-
-    private fun showGiftDetailDialog(gift: Gift) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(gift.name)
-            .setMessage("【规格】${gift.spec}\n\n${gift.desc}")
-            .setPositiveButton("合上画卷", null)
-            .setNeutralButton("登记意向") { _, _ ->
-                // 这里以后可以写你的意向表单逻辑
-                Toast.makeText(this, "期待与您共同守护非遗", Toast.LENGTH_SHORT).show()
-            }
-            .show()
     }
 
     override fun onResume() { super.onResume(); mediaPlayer?.start() }

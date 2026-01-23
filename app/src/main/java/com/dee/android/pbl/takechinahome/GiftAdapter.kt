@@ -16,7 +16,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 class GiftAdapter(
     private val giftList: List<Gift>,
     private val onNameLongClick: (RecyclerView.ViewHolder) -> Unit,
-    private val onItemClick: (Gift) -> Unit // 【新增】用于处理点击详情
+    private val onItemClick: (Gift) -> Unit // 处理详情点击
 ) : RecyclerView.Adapter<GiftAdapter.GiftViewHolder>() {
 
     class GiftViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -43,23 +43,21 @@ class GiftAdapter(
         holder.specText.text = gift.spec
         holder.descText.text = gift.desc
 
-        // 【新增】点击整个卡片查看详细弹窗
+        // 点击整个条目查看详情
         holder.itemView.setOnClickListener {
             onItemClick(gift)
         }
 
-        // 长按触发侧滑删除逻辑
+        // 长按名称触发侧滑
         holder.nameText.setOnLongClickListener {
             onNameLongClick(holder)
             true
         }
 
-        // 处理“投缘”登记逻辑
         holder.wishButton.setOnClickListener {
             showWishFormDialog(holder.itemView.context, gift)
         }
 
-        // 配置横向图片列表
         holder.carouselRecycler.apply {
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
             adapter = ImageAdapter(gift.images)
@@ -71,14 +69,12 @@ class GiftAdapter(
         }
     }
 
-    // 意向表单弹窗逻辑
     private fun showWishFormDialog(context: Context, gift: Gift) {
         val dialog = BottomSheetDialog(context)
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_wish_form, null)
         dialog.setContentView(view)
 
         val etContact = view.findViewById<EditText>(R.id.etContact)
-        val etRequirement = view.findViewById<EditText>(R.id.etRequirement)
         val btnSubmit = view.findViewById<Button>(R.id.btnSubmitWish)
         val tvTitle = view.findViewById<TextView>(R.id.tvTitle)
 
@@ -89,7 +85,6 @@ class GiftAdapter(
             if (contact.isBlank()) {
                 Toast.makeText(context, "请留下联系方式", Toast.LENGTH_SHORT).show()
             } else {
-                // 模拟保存联系方式
                 Toast.makeText(context, "记录成功，稍后联系您", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
