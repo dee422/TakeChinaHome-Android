@@ -15,7 +15,8 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 
 class GiftAdapter(
     private val giftList: List<Gift>,
-    private val onNameLongClick: (RecyclerView.ViewHolder) -> Unit
+    private val onNameLongClick: (RecyclerView.ViewHolder) -> Unit,
+    private val onItemClick: (Gift) -> Unit // 【新增】用于处理点击详情
 ) : RecyclerView.Adapter<GiftAdapter.GiftViewHolder>() {
 
     class GiftViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -24,8 +25,6 @@ class GiftAdapter(
         val specText: TextView = view.findViewById(R.id.giftSpecText)
         val descText: TextView = view.findViewById(R.id.giftDescText)
         val carouselRecycler: RecyclerView = view.findViewById(R.id.imageCarouselRecyclerView)
-        // 修复第一个错误：添加按钮引用
-        // 注意：Button 的包名应该是 android.widget.Button 或 com.google.android.material.button.MaterialButton
         val wishButton: View = view.findViewById(R.id.btnWish)
     }
 
@@ -44,16 +43,23 @@ class GiftAdapter(
         holder.specText.text = gift.spec
         holder.descText.text = gift.desc
 
+        // 【新增】点击整个卡片查看详细弹窗
+        holder.itemView.setOnClickListener {
+            onItemClick(gift)
+        }
+
+        // 长按触发侧滑删除逻辑
         holder.nameText.setOnLongClickListener {
             onNameLongClick(holder)
             true
         }
 
-        // 处理“投缘”按钮点击
+        // 处理“投缘”登记逻辑
         holder.wishButton.setOnClickListener {
             showWishFormDialog(holder.itemView.context, gift)
         }
 
+        // 配置横向图片列表
         holder.carouselRecycler.apply {
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
             adapter = ImageAdapter(gift.images)
@@ -65,17 +71,16 @@ class GiftAdapter(
         }
     }
 
-    // 修复第二个错误：实现意向表单弹窗
+    // 意向表单弹窗逻辑
     private fun showWishFormDialog(context: Context, gift: Gift) {
         val dialog = BottomSheetDialog(context)
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_wish_form, null)
         dialog.setContentView(view)
 
-        // 1. 确保 ID 与 dialog_wish_form.xml 一致
         val etContact = view.findViewById<EditText>(R.id.etContact)
         val etRequirement = view.findViewById<EditText>(R.id.etRequirement)
-        val btnSubmit = view.findViewById<Button>(R.id.btnSubmitWish) // 确保 XML 里有这个 ID
-        val tvTitle = view.findViewById<TextView>(R.id.tvTitle) // 对应 XML 中的标题
+        val btnSubmit = view.findViewById<Button>(R.id.btnSubmitWish)
+        val tvTitle = view.findViewById<TextView>(R.id.tvTitle)
 
         tvTitle.text = "登记意向：${gift.name}"
 
@@ -84,7 +89,7 @@ class GiftAdapter(
             if (contact.isBlank()) {
                 Toast.makeText(context, "请留下联系方式", Toast.LENGTH_SHORT).show()
             } else {
-                // TODO: 未来调用 Retrofit 发送给管理 APP
+                // 模拟保存联系方式
                 Toast.makeText(context, "记录成功，稍后联系您", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }

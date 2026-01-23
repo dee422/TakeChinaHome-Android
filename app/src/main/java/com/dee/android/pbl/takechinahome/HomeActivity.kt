@@ -8,20 +8,21 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.media.MediaPlayer
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
+import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit // 必须导入这个用于 KTX 优化
+import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -34,8 +35,8 @@ class HomeActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
     private lateinit var itemTouchHelper: ItemTouchHelper
     private val gson = Gson()
+    private var tvEmptyHint: TextView? = null // 提示文字，加问号防止报错
 
-    // 【性能优化】：将 Paint 提取为成员变量，避免在 onChildDraw 中重复创建
     private val deletePaint = Paint().apply {
         color = "#B22222".toColorInt()
         isAntiAlias = true
@@ -47,30 +48,49 @@ class HomeActivity : AppCompatActivity() {
 
         startBGM()
 
+        // 绑定提示文字（需先在 XML 中定义 id）
+        tvEmptyHint = findViewById(R.id.tvEmptyHint)
+
         val recyclerView = findViewById<RecyclerView>(R.id.giftRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
         setupTouchHelper(recyclerView)
 
-        adapter = GiftAdapter(myGifts) { viewHolder ->
+        // 核心修正：暂时改回 2 个参数，匹配你当前的 GiftAdapter.kt
+        adapter = GiftAdapter(myGifts, { viewHolder ->
             itemTouchHelper.startSwipe(viewHolder)
-        }
+        }, { gift ->
+            showGiftDetailDialog(gift) // 点击时弹出详情
+        })
         recyclerView.adapter = adapter
 
-        // 优先从本地缓存加载，实现“退出不重置”
+        // 1. 加载本地缓存
         loadCachedGifts()
 
-        // 只有本地没数据时才去云端加载初始数据
-        if (myGifts.isEmpty()) {
-            loadGiftsFromServer()
+        // 2. 只有在从未同步过且本地确实没数据时才同步
+        val prefs = getSharedPreferences("DataCache", MODE_PRIVATE)
+        val isFirstRun = prefs.getBoolean("is_first_run", true)
+
+        if (isFirstRun && myGifts.isEmpty()) {
+            loadGiftsFromServer(isInitial = true)
         }
+
+        // 初始检查是否显示“下拉同步”提示
+        updateEmptyView()
 
         val swipeRefreshLayout = findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
         swipeRefreshLayout.setColorSchemeColors("#8B4513".toColorInt())
         swipeRefreshLayout.setOnRefreshListener {
-            Handler(Looper.getMainLooper()).postDelayed({
-                refreshGifts(swipeRefreshLayout, recyclerView)
-            }, 1500)
+            refreshGifts(swipeRefreshLayout)
+        }
+    }
+
+    // 更新空列表提示逻辑
+    private fun updateEmptyView() {
+        if (myGifts.isEmpty()) {
+            tvEmptyHint?.visibility = View.VISIBLE
+        } else {
+            tvEmptyHint?.visibility = View.GONE
         }
     }
 
@@ -87,7 +107,7 @@ class HomeActivity : AppCompatActivity() {
                     .setTitle("移出画卷")
                     .setMessage("确定要将「${giftToDelete.name}」移出您的岁时礼序吗？")
                     .setPositiveButton("确定") { _, _ ->
-                        performDelete(position, giftToDelete, recyclerView)
+                        performDelete(position, giftToDelete)
                     }
                     .setNegativeButton("取消") { dialog, _ ->
                         adapter.notifyItemChanged(position)
@@ -116,29 +136,22 @@ class HomeActivity : AppCompatActivity() {
         itemTouchHelper.attachToRecyclerView(recyclerView)
     }
 
-    private fun performDelete(position: Int, deletedGift: Gift, recyclerView: RecyclerView) {
+    private fun performDelete(position: Int, deletedGift: Gift) {
         myGifts.removeAt(position)
-        cacheGiftsLocally() // 数据变动立即持久化
+        cacheGiftsLocally()
         adapter.notifyItemRemoved(position)
-
-        lifecycleScope.launch {
-            try {
-                RetrofitClient.instance.deleteGift(deletedGift.id)
-            } catch (_: Exception) {
-                Log.e("TakeChinaHome", "云端同步失败")
-            }
-        }
+        updateEmptyView()
 
         Snackbar.make(findViewById(android.R.id.content), "已移出：${deletedGift.name}", Snackbar.LENGTH_LONG)
             .setAction("撤销") {
                 myGifts.add(position, deletedGift)
-                cacheGiftsLocally() // 撤销后也要同步持久化
+                cacheGiftsLocally()
                 adapter.notifyItemInserted(position)
-                recyclerView.scrollToPosition(position)
+                updateEmptyView()
             }.show()
     }
 
-    private fun loadGiftsFromServer() {
+    private fun loadGiftsFromServer(isInitial: Boolean = false) {
         lifecycleScope.launch {
             try {
                 val response = RetrofitClient.instance.getGifts()
@@ -146,36 +159,36 @@ class HomeActivity : AppCompatActivity() {
                 myGifts.addAll(response)
                 @SuppressLint("NotifyDataSetChanged")
                 adapter.notifyDataSetChanged()
-                cacheGiftsLocally() // 云端数据拉取成功后缓存一份
+                cacheGiftsLocally()
+                updateEmptyView()
+
+                if (isInitial) {
+                    getSharedPreferences("DataCache", MODE_PRIVATE).edit {
+                        putBoolean("is_first_run", false)
+                    }
+                }
             } catch (e: Exception) {
                 Log.e("TakeChinaHome", "API异常: ${e.message}")
-                Toast.makeText(this@HomeActivity, "无法连接到画卷服务器", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun refreshGifts(swipe: SwipeRefreshLayout, rv: RecyclerView) {
-        // 停止手动添加“八角杯”，改为调用现有的云端加载逻辑
+    private fun refreshGifts(swipe: SwipeRefreshLayout) {
         lifecycleScope.launch {
             try {
                 val response = RetrofitClient.instance.getGifts()
                 if (response.isNotEmpty()) {
                     myGifts.clear()
                     myGifts.addAll(response)
-
-                    // 1. 更新 UI
+                    @SuppressLint("NotifyDataSetChanged")
                     adapter.notifyDataSetChanged()
-
-                    // 2. 覆盖本地过时的缓存，实现“恢复”功能
                     cacheGiftsLocally()
-
-                    Toast.makeText(this@HomeActivity, "画卷已同步至云端最新状态", Toast.LENGTH_SHORT).show()
+                    updateEmptyView()
+                    Toast.makeText(this@HomeActivity, "画卷已重新同步", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Log.e("TakeChinaHome", "同步失败: ${e.message}")
                 Toast.makeText(this@HomeActivity, "同步失败，请检查网络", Toast.LENGTH_SHORT).show()
             } finally {
-                // 无论成功失败，都要停止刷新动画
                 swipe.isRefreshing = false
             }
         }
@@ -193,17 +206,6 @@ class HomeActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.e("TakeChinaHome", "BGM加载异常", e)
         }
-    }
-
-    // 保存联系方式逻辑（推荐使用 KTX 扩展函数 edit { ... }）
-    private fun saveContactInfo(contact: String) {
-        getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
-            putString("saved_contact", contact)
-        }
-    }
-
-    private fun getSavedContact(): String {
-        return getSharedPreferences("UserPrefs", MODE_PRIVATE).getString("saved_contact", "") ?: ""
     }
 
     private fun cacheGiftsLocally() {
@@ -224,24 +226,24 @@ class HomeActivity : AppCompatActivity() {
                 myGifts.addAll(cachedList)
                 adapter.notifyDataSetChanged()
             } catch (e: Exception) {
-                Log.e("TakeChinaHome", "加载缓存失败: ${e.message}")
+                Log.e("TakeChinaHome", "加载缓存失败")
             }
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (mediaPlayer?.isPlaying == false) mediaPlayer?.start()
+    private fun showGiftDetailDialog(gift: Gift) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(gift.name)
+            .setMessage("【规格】${gift.spec}\n\n${gift.desc}")
+            .setPositiveButton("合上画卷", null)
+            .setNeutralButton("登记意向") { _, _ ->
+                // 这里以后可以写你的意向表单逻辑
+                Toast.makeText(this, "期待与您共同守护非遗", Toast.LENGTH_SHORT).show()
+            }
+            .show()
     }
 
-    override fun onPause() {
-        super.onPause()
-        mediaPlayer?.pause()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        mediaPlayer?.release()
-        mediaPlayer = null
-    }
+    override fun onResume() { super.onResume(); mediaPlayer?.start() }
+    override fun onPause() { super.onPause(); mediaPlayer?.pause() }
+    override fun onDestroy() { super.onDestroy(); mediaPlayer?.release(); mediaPlayer = null }
 }

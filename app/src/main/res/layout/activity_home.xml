@@ -47,6 +47,18 @@
             android:paddingTop="10dp"
             tools:listitem="@layout/item_gift" />
 
+        <TextView
+            android:id="@+id/tvEmptyHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/empty"
+            android:textAlignment="center"
+            android:textColor="#998B4513"
+            android:textSize="16sp"
+            android:lineSpacingExtra="8dp"
+            android:visibility="gone" />
+
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <View
