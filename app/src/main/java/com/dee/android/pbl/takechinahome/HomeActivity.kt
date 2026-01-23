@@ -8,6 +8,7 @@ import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -50,6 +51,46 @@ class HomeActivity : AppCompatActivity() {
                 Toast.makeText(this, "云端画卷已更新", Toast.LENGTH_SHORT).show()
             }, 2000)
         }
+
+        // 1. 创建滑动处理回调
+        val itemTouchHelperCallback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                return false // 我们不做拖动排序，只做侧滑
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                val position = viewHolder.adapterPosition
+                val deletedGift = myGifts[position]
+
+                myGifts.removeAt(position)
+                adapter.notifyItemRemoved(position)
+
+                // 使用 android.R.id.content 这是一个通用的方法，指向当前 Activity 的根视图
+                val snackbar = com.google.android.material.snackbar.Snackbar.make(
+                    findViewById(android.R.id.content),
+                    "已移出：${deletedGift.name}",
+                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG
+                )
+
+                // 自定义颜色让它更显眼（可选）
+                snackbar.setActionTextColor(Color.YELLOW)
+
+                snackbar.setAction("撤销") {
+                    myGifts.add(position, deletedGift)
+                    adapter.notifyItemInserted(position)
+                    recyclerView.scrollToPosition(position)
+                }
+                snackbar.show()
+            }
+        }
+
+// 5. 将处理工具绑定到 RecyclerView
+        val itemTouchHelper = ItemTouchHelper(itemTouchHelperCallback)
+        itemTouchHelper.attachToRecyclerView(recyclerView)
     }
 
     // --- 核心：播放逻辑 ---
