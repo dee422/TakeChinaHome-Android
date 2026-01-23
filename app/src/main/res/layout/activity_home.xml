@@ -12,7 +12,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="岁时礼序 · 礼品日历"
+        android:text="@string/home_title"
         android:textColor="#8B4513"
         android:textSize="24sp"
         android:letterSpacing="0.3"

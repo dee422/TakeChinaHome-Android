@@ -1,5 +1,6 @@
 package com.dee.android.pbl.takechinahome
 
+import android.annotation.SuppressLint
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -20,64 +21,58 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
+import androidx.core.graphics.toColorInt
 
 class HomeActivity : AppCompatActivity() {
 
     private lateinit var adapter: GiftAdapter
     private val myGifts = mutableListOf<Gift>()
     private var mediaPlayer: MediaPlayer? = null
-    // 需要把 itemTouchHelper 提出来作为成员变量
     private lateinit var itemTouchHelper: ItemTouchHelper
+
+    // 【性能优化】：将 Paint 提取为成员变量，避免在 onChildDraw 中重复创建
+    private val deletePaint = Paint().apply {
+        color = "#B22222".toColorInt()
+        isAntiAlias = true
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
+        // 1. 初始化 BGM
         startBGM()
 
+        // 2. 初始化 RecyclerView
         val recyclerView = findViewById<RecyclerView>(R.id.giftRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
-        // 初始化 ItemTouchHelper 逻辑
+        // 3. 初始化 ItemTouchHelper 逻辑
         setupTouchHelper(recyclerView)
 
-        // 初始化 Adapter，传入长按回调
+        // 4. 初始化 Adapter，并设置长按触发滑动
         adapter = GiftAdapter(myGifts) { viewHolder ->
-            // 只有这里被触发时，才手动开启滑动
             itemTouchHelper.startSwipe(viewHolder)
         }
         recyclerView.adapter = adapter
 
+        // 5. 加载数据
         loadGiftsFromServer()
 
+        // 6. 下拉刷新逻辑
         val swipeRefreshLayout = findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
-        swipeRefreshLayout.setColorSchemeColors(Color.parseColor("#8B4513"))
+        swipeRefreshLayout.setColorSchemeColors("#8B4513".toColorInt())
         swipeRefreshLayout.setOnRefreshListener {
+            // 模拟网络延迟
             Handler(Looper.getMainLooper()).postDelayed({
-                val newItem = Gift(
-                    id = 101, // 模拟新ID
-                    deadline = "2026-05-05",
-                    name = "官窑八角杯",
-                    spec = "高5cm / 青瓷",
-                    desc = "雨过天晴云破处，者般颜色做将来",
-                    images = listOf(
-                        "https://ichessgeek.com/takechinahome/gift100_1.jpg",
-                        "https://ichessgeek.com/takechinahome/gift100_2.jpg",
-                        "https://ichessgeek.com/takechinahome/gift100_3.jpg")
-                )
-                myGifts.add(0, newItem)
-                adapter.notifyItemInserted(0)
-                recyclerView.scrollToPosition(0)
-                swipeRefreshLayout.isRefreshing = false
-                Toast.makeText(this, "云端画卷已更新", Toast.LENGTH_SHORT).show()
-            }, 2000)
+                refreshGifts(swipeRefreshLayout, recyclerView)
+            }, 1500)
         }
     }
 
     private fun setupTouchHelper(recyclerView: RecyclerView) {
         val callback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
 
-            // 【核心修复一】：禁用默认的滑动判定
             override fun isItemViewSwipeEnabled(): Boolean = false
 
             override fun onMove(r: RecyclerView, v: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
@@ -86,7 +81,6 @@ class HomeActivity : AppCompatActivity() {
                 val position = viewHolder.adapterPosition
                 val giftToDelete = myGifts[position]
 
-                // --- 规则二：确认弹窗 ---
                 AlertDialog.Builder(this@HomeActivity)
                     .setTitle("移出画卷")
                     .setMessage("确定要将「${giftToDelete.name}」移出您的岁时礼序吗？")
@@ -104,11 +98,11 @@ class HomeActivity : AppCompatActivity() {
             override fun onChildDraw(c: Canvas, rv: RecyclerView, vh: RecyclerView.ViewHolder, dX: Float, dY: Float, actionState: Int, isCurrentlyActive: Boolean) {
                 val itemView = vh.itemView
                 if (dX < 0) {
-                    val paint = Paint().apply { color = Color.parseColor("#B22222") }
-                    c.drawRect(RectF(itemView.right.toFloat() + dX, itemView.top.toFloat(), itemView.right.toFloat(), itemView.bottom.toFloat()), paint)
+                    // 使用预先创建的 deletePaint 绘制背景
+                    c.drawRect(RectF(itemView.right.toFloat() + dX, itemView.top.toFloat(), itemView.right.toFloat(), itemView.bottom.toFloat()), deletePaint)
 
                     ContextCompat.getDrawable(this@HomeActivity, R.drawable.ic_discard)?.let { icon ->
-                        val iconSize = (itemView.height * 0.2).toInt() // 侧滑图标小一点更精致
+                        val iconSize = (itemView.height * 0.25).toInt()
                         val margin = (itemView.height - iconSize) / 2
                         icon.setBounds(itemView.right - margin - iconSize, itemView.top + margin, itemView.right - margin, itemView.bottom - margin)
                         icon.setTint(Color.WHITE)
@@ -129,9 +123,9 @@ class HomeActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val response = RetrofitClient.instance.deleteGift(deletedGift.id)
-                if (response.isSuccessful) Log.d("TakeChinaHome", "云端同步成功")
-            } catch (e: Exception) {
+                // 假设删除接口，若没有可先注释
+                RetrofitClient.instance.deleteGift(deletedGift.id)
+            } catch (_: Exception) {
                 Log.e("TakeChinaHome", "云端同步失败")
             }
         }
@@ -150,22 +144,60 @@ class HomeActivity : AppCompatActivity() {
                 val response = RetrofitClient.instance.getGifts()
                 myGifts.clear()
                 myGifts.addAll(response)
+                @SuppressLint("NotifyDataSetChanged")
                 adapter.notifyDataSetChanged()
             } catch (e: Exception) {
                 Log.e("TakeChinaHome", "API异常: ${e.message}")
+                Toast.makeText(this@HomeActivity, "无法连接到画卷服务器", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun startBGM() {
-        try {
-            mediaPlayer = MediaPlayer.create(this, R.raw.bg_music)
-            mediaPlayer?.apply { isLooping = true; setVolume(0.7f, 0.7f); start() }
-        } catch (e: Exception) { Log.e("TakeChinaHome", "BGM异常") }
+    private fun refreshGifts(swipe: SwipeRefreshLayout, rv: RecyclerView) {
+        val newItem = Gift(
+            id = System.currentTimeMillis().toInt(), // 随机ID
+            deadline = "2026-05-05",
+            name = "官窑八角杯",
+            spec = "高5cm / 青瓷",
+            desc = "雨过天晴云破处，者般颜色做将来",
+            images = listOf(
+                "https://ichessgeek.com/takechinahome/gift100_1.jpg",
+                "https://ichessgeek.com/takechinahome/gift100_2.jpg",
+                "https://ichessgeek.com/takechinahome/gift100_3.jpg")
+        )
+        myGifts.add(0, newItem)
+        adapter.notifyItemInserted(0)
+        rv.scrollToPosition(0)
+        swipe.isRefreshing = false
+        Toast.makeText(this, "云端画卷已更新", Toast.LENGTH_SHORT).show()
     }
 
-    override fun onResume() { super.onResume(); mediaPlayer?.start() }
-    override fun onPause() { super.onPause(); mediaPlayer?.pause() }
+    private fun startBGM() {
+        // 防止重复播放导致卡顿
+        if (mediaPlayer != null) return
+
+        try {
+            mediaPlayer = MediaPlayer.create(this, R.raw.bg_music)
+            mediaPlayer?.apply {
+                isLooping = true
+                setVolume(0.6f, 0.6f)
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e("TakeChinaHome", "BGM加载异常", e)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (mediaPlayer?.isPlaying == false) mediaPlayer?.start()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        mediaPlayer?.pause()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         mediaPlayer?.release()

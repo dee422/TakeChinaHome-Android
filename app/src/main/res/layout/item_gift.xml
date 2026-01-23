@@ -21,18 +21,7 @@
             android:layout_height="wrap_content">
 
             <TextView
-                android:id="@+id/giftNameText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#2C3E50"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                tools:text="汝窑茶承" />
-
-            <TextView
                 android:id="@+id/giftDeadlineText"
-                android:layout_toEndOf="@id/giftNameText"
-                android:layout_marginStart="8dp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
@@ -41,8 +30,21 @@
                 android:paddingHorizontal="6dp"
                 android:paddingVertical="2dp"
                 android:textColor="#B22222"
-                android:textSize="11sp"
-                tools:text="截止日期: 2026-02-12" />
+                android:textSize="12sp"
+                tools:text="截止: 02-12" />
+
+            <TextView
+                android:id="@+id/giftNameText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_toStartOf="@id/giftDeadlineText"
+                android:layout_marginEnd="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#2C3E50"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                tools:text="这是一件名字极其长长长长长的非遗艺术品" />
         </RelativeLayout>
 
         <TextView
@@ -50,7 +52,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textColor="#7F8C8D"
+            android:textColor="#546E7A"
             android:textSize="13sp"
             tools:text="规格：直径30cm / 青瓷" />
 
@@ -62,19 +64,44 @@
             android:lineSpacingExtra="5dp"
             android:textColor="#34495E"
             android:textSize="14sp"
-            tools:text="雨过天青云破处。此茶承承袭宋代审美，釉面温润如玉..." />
+            tools:text="雨过天青云破处。此茶承承袭宋代审美..." />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/imageCarouselRecyclerView"
             android:layout_width="match_parent"
+            android:layout_gravity="center_horizontal"
             android:layout_height="140dp"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:clipToPadding="false"
-            android:orientation="horizontal"
-            android:paddingHorizontal="16dp"
+            android:paddingHorizontal="4dp"
+            android:contentDescription="@string/gift_image_carousel"
             tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
             tools:listitem="@layout/item_image"
-            tools:orientation="horizontal" />
+            tools:orientation="horizontal"
+            android:layout_marginBottom="8dp"/>
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnWish"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:text="@string/btn_wish_text"
+                android:textColor="#8B4513"
+                android:textSize="14sp"
+                app:strokeColor="#8B4513"
+                app:cornerRadius="20dp"
+
+                app:icon="@drawable/ic_heart"
+                app:iconTint="#8B4513"
+                app:iconGravity="textStart"/>
+        </RelativeLayout>
 
     </LinearLayout>
+
 </androidx.cardview.widget.CardView>

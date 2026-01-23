@@ -56,14 +56,15 @@ class MainActivity : AppCompatActivity() {
                             startActivity(intent)
 
                             // 动画过渡
+                            @Suppress("DEPRECATION")
                             overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                             finish()
                         }, 1500)
                     } else {
-                        statusTextView.text = "审核未通过: ${loginRes?.message}"
+                        statusTextView.text = getString(R.string.login_success, loginRes?.message)
                     }
                 } else {
-                    statusTextView.text = "服务器响应错误: ${response.code()}"
+                    statusTextView.text = getString(R.string.error_server_response, response.code())
                 }
             }
 
@@ -86,7 +87,7 @@ class MainActivity : AppCompatActivity() {
     data class LoginData(
         val token: String,
         val role: String,
-        val welcome_msg: String
+        val welcomeMsg: String
     )
 
     interface ApiService {

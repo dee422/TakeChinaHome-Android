@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.TakeChinaHome" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="colorPrimary">#8B4513</item> <item name="colorPrimaryDark">#5D2E0C</item>
+    <style name="Theme.TakeChinaHome" parent="Theme.MaterialComponents.Light.NoActionBar">
+
+        <item name="colorPrimary">#8B4513</item>
+        <item name="colorPrimaryVariant">#5D2E0C</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+
+        <item name="colorSecondary">#8B4513</item>
+        <item name="colorSecondaryVariant">#5D2E0C</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+
+        <item name="colorControlActivated">#8B4513</item>
     </style>
 </resources>
