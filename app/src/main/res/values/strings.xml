@@ -10,4 +10,6 @@
     <string name="login_success">登录成功: %1$s</string>
     <string name="error_server_response">服务器响应错误: %1$d</string>
     <string name="empty">画卷空空如也\n下拉同步云端数据</string>
+    <string name="action_generate_order">生成清单</string>
+    <string name="custom_title_format">定制：%1$s</string>
 </resources>

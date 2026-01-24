@@ -1,14 +1,20 @@
 package com.dee.android.pbl.takechinahome
 
-/**
- * 礼品数据类
- * 字段名必须与 JSON 中的 Key 完全一致，否则 Gson 会解析失败
- */
+import java.io.Serializable
+
 data class Gift(
-    val id: Int,
-    val deadline: String,   // 下单截止日期
-    val name: String,       // 品名
-    val spec: String,       // 规格
-    val desc: String,       // 描述
-    val images: List<String> // 照片 URL 列表（对应 JSON 中的数组）
-)
+    val id: String,
+    val name: String,
+    val label: String,
+    val deadline: String,
+    val spec: String,
+    val desc: String,
+    val images: List<String>,
+
+    // 【新增定制字段】这些数据仅保存在手机本地内存中，用于生成清单图
+    var customText: String = "",       // 刻花/底款内容
+    var customQuantity: String = "1",  // 订购数量
+    var customDeliveryDate: String = "",// 期望交货期
+    var customNotes: String = "",       // 其他备注
+    var isSaved: Boolean = false // 新增：标记是否已确认定制
+) : Serializable
