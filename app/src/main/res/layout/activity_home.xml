@@ -2,6 +2,7 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#FDF5E6">
@@ -12,39 +13,72 @@
         android:background="#FDF5E6"
         app:elevation="0dp">
 
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize">
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:paddingHorizontal="16dp">
+
+            <TextView
+                android:id="@+id/tvAppTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:layout_toStartOf="@+id/toolbar_container"
+                android:text="岁时礼序 · 礼品日历"
+                android:textColor="#8B4513"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <LinearLayout
+                android:id="@+id/toolbar_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true">
+                <androidx.appcompat.widget.Toolbar
+                    android:id="@+id/toolbar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:contentInsetStart="0dp" />
+            </LinearLayout>
+        </RelativeLayout>
+
+        <LinearLayout
+            android:id="@+id/btnRegisterIntent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="12dp"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@drawable/ic_edit"
+                app:tint="#8B4513" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="岁 时 礼 序  ·  礼 品 日 历"
-                android:textColor="#8B4513"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.2" />
-        </androidx.appcompat.widget.Toolbar>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRegisterIntent"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="「成单前请于此处登记名帖」"
-            android:textColor="#8B4513"
-            android:letterSpacing="0.1"
-            app:icon="@drawable/ic_edit"
-            app:iconTint="#8B4513"
-            android:layout_marginHorizontal="16dp"/>
+                android:layout_marginStart="6dp"
+                android:text="「成单前请于此处登记名帖」"
+                android:textColor="#A52A2A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <View
             android:layout_width="match_parent"
-            android:layout_height="4dp"
-            android:background="#8B4513"
-            android:layout_marginHorizontal="16dp"/>
+            android:layout_height="3dp"
+            android:layout_marginHorizontal="16dp"
+            android:background="#8B4513" />
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -82,9 +116,9 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="24dp"
-        android:contentDescription="生成清单"
         app:backgroundTint="#8B4513"
         app:srcCompat="@drawable/ic_save"
-        app:tint="#FFFFFF" />
+        app:tint="#FFFFFF"
+        tools:ignore="SpeakableTextPresentCheck" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

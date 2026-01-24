@@ -8,7 +8,10 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
+import android.view.Gravity
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -56,7 +59,6 @@ class HomeActivity : AppCompatActivity() {
         startBGM()
         tvEmptyHint = findViewById(R.id.tvEmptyHint)
 
-        // 绑定登记意向按钮
         findViewById<View>(R.id.btnRegisterIntent).setOnClickListener {
             showWishFormDialog()
         }
@@ -79,6 +81,12 @@ class HomeActivity : AppCompatActivity() {
             loadGiftsFromServer(isInitial = true)
         }
 
+        // 首次运行弹出帮助指南
+        if (prefs.getBoolean("is_first_help", true)) {
+            showHelpDialog()
+            prefs.edit { putBoolean("is_first_help", false) }
+        }
+
         updateEmptyView()
 
         val swipeRefreshLayout = findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
@@ -90,6 +98,72 @@ class HomeActivity : AppCompatActivity() {
         findViewById<View>(R.id.fabGenerate).setOnClickListener {
             generateOrderImage()
         }
+    }
+
+    // --- 新增：菜单栏逻辑 ---
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.home_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_generate_order -> {
+                generateOrderImage()
+                true
+            }
+            R.id.action_help -> {
+                showHelpDialog()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    // --- 新增：古风帮助弹窗 ---
+    private fun showHelpDialog() {
+        val helpTips = listOf(
+            "【回望】下拉画卷可同步云端数据，并重置画卷。",
+            "【裁撤】长按品名并向左滑动，可移出该礼品项。",
+            "【落款】下单前，请先在顶端栏登记名帖信息。",
+            "【寻幽】画卷深远，向上滑动可查看更多礼品。",
+            "【成画】按右下保存键或右上图标生成订购清单。",
+            "【时限】每件礼品皆有时限，请留意订购截止日。"
+        )
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(70, 50, 70, 70)
+            setBackgroundColor(Color.parseColor("#F4EFE2"))
+        }
+
+        val titleView = TextView(this).apply {
+            text = "— 岁时礼序 · 使用指南 —"
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#8B4513"))
+            setPadding(0, 0, 0, 40)
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+        }
+        container.addView(titleView)
+
+        helpTips.forEach { tip ->
+            val tv = TextView(this).apply {
+                text = tip
+                textSize = 15f
+                setTextColor(Color.parseColor("#4A4A4A"))
+                setPadding(0, 12, 0, 12)
+                // 修正这里：第一个参数是额外间距（设为 0f），第二个是倍数（1.3f）
+                setLineSpacing(0f, 1.3f)
+                typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+            }
+            container.addView(tv)
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setView(container)
+            .setPositiveButton("敬悉", null) // 改为敬悉，表示用户已恭敬地知晓。
+            .show()
     }
 
     private fun showWishFormDialog() {
@@ -112,7 +186,7 @@ class HomeActivity : AppCompatActivity() {
                 putString("saved_contact", etContact.text.toString())
                 putString("saved_comm_time", etCommTime.text.toString())
             }
-            Toast.makeText(this, "客户意向已登记", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "客户名帖已登记", Toast.LENGTH_SHORT).show()
             dialog.dismiss()
         }
         dialog.show()
@@ -139,6 +213,7 @@ class HomeActivity : AppCompatActivity() {
                 gift.customNotes = etNotes.text.toString()
                 gift.isSaved = true
                 cacheGiftsLocally()
+                adapter.notifyDataSetChanged()
                 Toast.makeText(this, "已加入清单", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("取消", null)
@@ -158,10 +233,11 @@ class HomeActivity : AppCompatActivity() {
         val time = prefs.getString("saved_comm_time", "随时可叙") ?: "随时可叙"
 
         val width = 1080
-        var totalHeight = 1000
+        var totalHeight = 1100
         val paint = Paint().apply {
             isAntiAlias = true
             typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+            setShadowLayer(1.5f, 1f, 1f, Color.parseColor("#44000000"))
         }
 
         val itemHeights = mutableListOf<Float>()
@@ -177,20 +253,50 @@ class HomeActivity : AppCompatActivity() {
         try {
             val bitmap = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            canvas.drawColor(Color.parseColor("#FDF5E6")) // 宣纸背景
 
-            // --- 标题 ---
+            canvas.drawColor(Color.parseColor("#F4EFE2"))
+
+            val random = Random()
+            val texturePaint = Paint().apply {
+                isAntiAlias = true
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+            }
+
+            for (i in 0..300) {
+                texturePaint.strokeWidth = random.nextFloat() * 2f + 1f
+                val alpha = random.nextInt(40) + 20
+                texturePaint.color = Color.argb(alpha, 120, 100, 80)
+
+                val startX = random.nextFloat() * width
+                val startY = random.nextFloat() * totalHeight
+                val length = random.nextFloat() * 60f + 20f
+                val angle = random.nextFloat() * Math.PI * 2
+                val endX = startX + (Math.cos(angle) * length).toFloat()
+                val endY = startY + (Math.sin(angle) * length).toFloat()
+
+                canvas.drawLine(startX, startY, endX, endY, texturePaint)
+
+                if (i % 10 == 0) {
+                    val dotPaint = Paint(texturePaint).apply { style = Paint.Style.FILL }
+                    canvas.drawCircle(startX, startY, random.nextFloat() * 3f + 1f, dotPaint)
+                }
+            }
+
+            val radialGradient = RadialGradient(width/2f, totalHeight/2f, Math.max(width, totalHeight).toFloat(),
+                intArrayOf(Color.TRANSPARENT, Color.parseColor("#12000000")), null, Shader.TileMode.CLAMP)
+            canvas.drawRect(0f, 0f, width.toFloat(), totalHeight.toFloat(), Paint().apply { shader = radialGradient })
+
             paint.color = Color.BLACK
-            paint.textSize = 80f
+            paint.textSize = 85f
             paint.textAlign = Paint.Align.CENTER
             paint.isFakeBoldText = true
             canvas.drawText("岁时礼序 · 订购清单", width / 2f, 180f, paint)
 
-            // --- 顶部名帖信息 ---
             paint.textAlign = Paint.Align.LEFT
             paint.isFakeBoldText = false
             paint.textSize = 45f
-            paint.color = Color.parseColor("#B22222") // 朱红
+            paint.color = Color.parseColor("#B22222")
             canvas.drawText("【名帖 · 登记意向】", 100f, 300f, paint)
 
             paint.color = Color.BLACK
@@ -200,9 +306,9 @@ class HomeActivity : AppCompatActivity() {
             canvas.drawText("便宜时间：$time", 130f, 490f, paint)
 
             paint.color = Color.parseColor("#8B4513")
+            paint.strokeWidth = 2f
             canvas.drawLine(100f, 540f, width - 100f, 540f, paint)
 
-            // --- 礼品细节 ---
             var currentY = 650f
             activeGifts.forEachIndexed { index, gift ->
                 paint.textSize = 50f
@@ -223,35 +329,34 @@ class HomeActivity : AppCompatActivity() {
                 noteLines.forEach { canvas.drawText(it, 130f, textY, paint); textY += 60f }
 
                 currentY += itemHeights[index]
-                paint.color = Color.parseColor("#DCDCDC")
+                paint.color = Color.parseColor("#338B4513")
                 canvas.drawLine(100f, currentY - 50f, width - 100f, currentY - 50f, paint)
             }
 
-            // --- 落款区：阴文印章 + 日期 ---
-            val dateY = totalHeight - 100f
+            val dateY = totalHeight - 120f
             paint.textAlign = Paint.Align.RIGHT
             paint.color = Color.BLACK
             paint.textSize = 38f
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date())
             canvas.drawText("生成日期：$today", width - 100f, dateY, paint)
 
-            // 阴文印章布局
             val sealSize = 150f
             val sealX = width - 480f
-            val sealY = dateY - 240f // 在日期斜上方
+            val sealY = dateY - 240f
 
-            // 1. 实心朱红底座
-            paint.style = Paint.Style.FILL
-            paint.color = Color.parseColor("#B22222")
-            canvas.drawRect(sealX, sealY, sealX + sealSize, sealY + sealSize, paint)
+            val sealPaint = Paint(paint).apply { clearShadowLayer() }
+            sealPaint.style = Paint.Style.FILL
+            sealPaint.color = Color.parseColor("#B22222")
+            sealPaint.pathEffect = DiscretePathEffect(1.5f, 4f)
+            canvas.drawRect(sealX, sealY, sealX + sealSize, sealY + sealSize, sealPaint)
 
-            // 2. 白色阴文字
-            paint.color = Color.WHITE
-            paint.textAlign = Paint.Align.CENTER
-            paint.isFakeBoldText = true
-            paint.textSize = 45f
-            canvas.drawText("岁时", sealX + sealSize/2, sealY + 65f, paint)
-            canvas.drawText("礼序", sealX + sealSize/2, sealY + 125f, paint)
+            sealPaint.color = Color.WHITE
+            sealPaint.textAlign = Paint.Align.CENTER
+            sealPaint.isFakeBoldText = true
+            sealPaint.textSize = 45f
+            sealPaint.pathEffect = null
+            canvas.drawText("岁时", sealX + sealSize/2, sealY + 65f, sealPaint)
+            canvas.drawText("礼序", sealX + sealSize/2, sealY + 125f, sealPaint)
 
             saveBitmapToGallery(bitmap)
 
@@ -293,15 +398,43 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showImagePreviewDialog(bitmap: Bitmap) {
         val scrollView = ScrollView(this).apply {
-            layoutParams = FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.6).toInt())
+            layoutParams = FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.7).toInt())
         }
-        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); gravity = android.view.Gravity.CENTER }
-        val imageView = ImageView(this).apply { setImageBitmap(bitmap); adjustViewBounds = true; scaleType = ImageView.ScaleType.FIT_CENTER }
-        val hintView = TextView(this).apply { text = "「已存至相册」\n请移步系统相册查看完整画卷。"; textSize = 14f; gravity = android.view.Gravity.CENTER; setTextColor(Color.parseColor("#8B4513")); setPadding(0, 40, 0, 0) }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 60, 40, 60)
+            gravity = android.view.Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#EEE9DE"))
+        }
+
+        val imageView = ImageView(this).apply {
+            setImageBitmap(bitmap)
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                elevation = 20f
+            }
+        }
+
+        val hintView = TextView(this).apply {
+            text = "「已存至相册」\n愿此礼心诚意满。"
+            textSize = 14f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(Color.parseColor("#8B4513"))
+            setPadding(0, 50, 0, 0)
+            typeface = Typeface.create(Typeface.SERIF, Typeface.ITALIC)
+        }
+
         container.addView(imageView)
         container.addView(hintView)
         scrollView.addView(container)
-        MaterialAlertDialogBuilder(this).setTitle("成单预览").setView(scrollView).setPositiveButton("确入", null).show()
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("清单预览")
+            .setView(scrollView)
+            .setPositiveButton("确入", null)
+            .show()
     }
 
     private fun updateEmptyView() { tvEmptyHint?.visibility = if (myGifts.isEmpty()) View.VISIBLE else View.GONE }

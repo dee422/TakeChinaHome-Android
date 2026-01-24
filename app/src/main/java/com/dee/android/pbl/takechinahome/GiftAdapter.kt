@@ -80,12 +80,9 @@ class GiftAdapter(
         dialog.setContentView(view)
 
         // 确保 dialog_wish_form.xml 包含这些 ID
-        val tvTitle = view.findViewById<TextView>(R.id.tvTitle)
         val etName = view.findViewById<EditText>(R.id.etName)
         val etContact = view.findViewById<EditText>(R.id.etContact)
         val btnSubmit = view.findViewById<Button>(R.id.btnSubmitWish)
-
-        tvTitle?.text = "「名帖登记」"
 
         btnSubmit.setOnClickListener {
             val contact = etContact.text.toString()
