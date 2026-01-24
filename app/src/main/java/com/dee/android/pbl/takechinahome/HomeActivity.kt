@@ -34,6 +34,7 @@ import java.util.*
 
 class HomeActivity : AppCompatActivity() {
 
+    private var isMusicPlaying = true // 默认播放
     private lateinit var adapter: GiftAdapter
     private val myGifts = mutableListOf<Gift>()
     private var mediaPlayer: MediaPlayer? = null
@@ -113,8 +114,27 @@ class HomeActivity : AppCompatActivity() {
         return true
     }
 
+    override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
+        val musicItem = menu?.findItem(R.id.action_toggle_music)
+        musicItem?.title = if (isMusicPlaying) "音律：奏鸣" else "音律：暂歇"
+        return super.onPrepareOptionsMenu(menu)
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_toggle_music -> {
+                isMusicPlaying = !isMusicPlaying
+                if (isMusicPlaying) {
+                    mediaPlayer?.start()
+                    Toast.makeText(this, "丝竹再起", Toast.LENGTH_SHORT).show()
+                } else {
+                    mediaPlayer?.pause()
+                    Toast.makeText(this, "音律已歇", Toast.LENGTH_SHORT).show()
+                }
+                // 强制更新菜单文案
+                invalidateOptionsMenu()
+                true
+            }
             R.id.action_generate_order -> {
                 generateOrderImage()
                 true
@@ -124,6 +144,23 @@ class HomeActivity : AppCompatActivity() {
                 true
             }
             else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun toggleMusic(item: MenuItem) {
+        if (isMusicPlaying) {
+            mediaPlayer?.pause()
+            item.setIcon(R.drawable.ic_music_off) // 需确保有此图标
+            Toast.makeText(this, "音律已歇", Toast.LENGTH_SHORT).show()
+        } else {
+            mediaPlayer?.start()
+            item.setIcon(R.drawable.ic_music_note)
+            Toast.makeText(this, "丝竹再起", Toast.LENGTH_SHORT).show()
+        }
+        isMusicPlaying = !isMusicPlaying
+
+        getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
+            putBoolean("music_enabled", isMusicPlaying)
         }
     }
 
@@ -445,19 +482,61 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupTouchHelper(recyclerView: RecyclerView) {
         val callback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
-            override fun isItemViewSwipeEnabled(): Boolean = false
+
+            override fun isItemViewSwipeEnabled(): Boolean = true
+
+            // --- 核心修复：提高灵敏度 ---
+
+            // 1. 降低触发滑动的比例阈值（默认 0.5f，改为 0.3f 意味着滑出 30% 宽就触发）
+            override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float = 0.3f
+
+            // 2. 提高“逃逸速度”（让快划更容易被捕捉）
+            override fun getSwipeEscapeVelocity(defaultValue: Float): Float = defaultValue * 0.5f
+
             override fun onMove(r: RecyclerView, v: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
+
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                 val position = viewHolder.adapterPosition
                 val gift = myGifts[position]
-                AlertDialog.Builder(this@HomeActivity).setTitle("移出画卷").setMessage("确定要移出「${gift.name}」吗？")
+
+                MaterialAlertDialogBuilder(this@HomeActivity)
+                    .setTitle("裁撤项目")
+                    .setMessage("确定要将「${gift.name}」移出画卷吗？")
                     .setPositiveButton("确定") { _, _ -> performDelete(position, gift) }
-                    .setNegativeButton("取消") { d, _ -> adapter.notifyItemChanged(position); d.dismiss() }.show()
+                    .setNegativeButton("取消") { d, _ ->
+                        adapter.notifyItemChanged(position) // 重要：刷新以弹回 Item
+                        d.dismiss()
+                    }
+                    .setCancelable(false)
+                    .show()
             }
+
             override fun onChildDraw(c: Canvas, rv: RecyclerView, vh: RecyclerView.ViewHolder, dX: Float, dY: Float, actionState: Int, isCurrentlyActive: Boolean) {
-                if (dX < 0) {
+                if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE && dX < 0) {
                     val itemView = vh.itemView
-                    c.drawRect(RectF(itemView.right.toFloat() + dX, itemView.top.toFloat(), itemView.right.toFloat(), itemView.bottom.toFloat()), deletePaint)
+
+                    // 绘制红色底色
+                    c.drawRect(
+                        RectF(itemView.right.toFloat() + dX, itemView.top.toFloat(), itemView.right.toFloat(), itemView.bottom.toFloat()),
+                        deletePaint
+                    )
+
+                    // 绘制“弃”图标
+                    val icon = ContextCompat.getDrawable(this@HomeActivity, R.drawable.ic_discard)
+                    icon?.let {
+                        it.setTint(Color.WHITE)
+                        val iconSize = (itemView.height * 0.4).toInt()
+                        val margin = (itemView.height - iconSize) / 2
+                        val iconTop = itemView.top + margin
+                        val iconBottom = itemView.bottom - margin
+                        val iconRight = itemView.right - margin
+                        val iconLeft = iconRight - iconSize
+
+                        if (Math.abs(dX) > (iconSize + margin)) {
+                            it.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                            it.draw(c)
+                        }
+                    }
                 }
                 super.onChildDraw(c, rv, vh, dX, dY, actionState, isCurrentlyActive)
             }
@@ -507,10 +586,17 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun startBGM() {
+        // 从缓存读取用户是否开启了音乐
+        isMusicPlaying = getSharedPreferences("UserPrefs", MODE_PRIVATE).getBoolean("music_enabled", true)
+
         if (mediaPlayer != null) return
         try {
             mediaPlayer = MediaPlayer.create(this, R.raw.bg_music)
-            mediaPlayer?.apply { isLooping = true; setVolume(0.6f, 0.6f); start() }
+            mediaPlayer?.apply {
+                isLooping = true
+                setVolume(0.6f, 0.6f)
+                if (isMusicPlaying) start()
+            }
         } catch (e: Exception) { }
     }
 
