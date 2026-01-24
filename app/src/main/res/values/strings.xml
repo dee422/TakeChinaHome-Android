@@ -12,4 +12,11 @@
     <string name="empty">画卷空空如也\n下拉同步云端数据</string>
     <string name="action_generate_order">生成清单</string>
     <string name="custom_title_format">定制：%1$s</string>
+    <string name="name_edit">编辑名帖</string>
+    <string name="notify_edit">「成单前请于此处登记名帖」</string>
+    <string name="empty_items">画卷空空，待君点选</string>
+    <string name="create_list">生成清单</string>
+    <string name="confirm_enter">确入画卷</string>
+    <string name="confirmed">确入画卷</string>
+
 </resources>

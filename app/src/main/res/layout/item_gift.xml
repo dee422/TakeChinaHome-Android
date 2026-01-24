@@ -13,95 +13,110 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:orientation="vertical">
 
-        <RelativeLayout
+        <FrameLayout
+            android:id="@+id/imageArea"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:background="#10000000">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/imageCarouselRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="140dp"
+                android:clipToPadding="false"
+                android:paddingHorizontal="4dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                tools:orientation="horizontal" />
+        </FrameLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginHorizontal="16dp"/>
+
+        <LinearLayout
+            android:id="@+id/textContentArea"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/giftDeadlineText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:background="#10B22222"
+                    android:paddingHorizontal="6dp"
+                    android:paddingVertical="2dp"
+                    android:textColor="#B22222"
+                    android:textSize="12sp"
+                    tools:text="截止: 02-12" />
+
+                <TextView
+                    android:id="@+id/giftNameText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_toStartOf="@id/giftDeadlineText"
+                    android:layout_marginEnd="8dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#2C3E50"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    tools:text="非遗艺术品名称" />
+            </RelativeLayout>
 
             <TextView
-                android:id="@+id/giftDeadlineText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:background="#10B22222"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="2dp"
-                android:textColor="#B22222"
-                android:textSize="12sp"
-                tools:text="截止: 02-12" />
-
-            <TextView
-                android:id="@+id/giftNameText"
+                android:id="@+id/giftSpecText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_toStartOf="@id/giftDeadlineText"
-                android:layout_marginEnd="8dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#2C3E50"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                tools:text="这是一件名字极其长长长长长的非遗艺术品" />
-        </RelativeLayout>
+                android:layout_marginTop="4dp"
+                android:textColor="#546E7A"
+                android:textSize="13sp"
+                tools:text="规格：直径30cm / 青瓷" />
 
-        <TextView
-            android:id="@+id/giftSpecText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="#546E7A"
-            android:textSize="13sp"
-            tools:text="规格：直径30cm / 青瓷" />
-
-        <TextView
-            android:id="@+id/giftDescText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:lineSpacingExtra="5dp"
-            android:textColor="#34495E"
-            android:textSize="14sp"
-            tools:text="雨过天青云破处。此茶承承袭宋代审美..." />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/imageCarouselRecyclerView"
-            android:layout_width="match_parent"
-            android:layout_gravity="center_horizontal"
-            android:layout_height="140dp"
-            android:layout_marginTop="12dp"
-            android:clipToPadding="false"
-            android:paddingHorizontal="4dp"
-            android:contentDescription="@string/gift_image_carousel"
-            tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-            tools:listitem="@layout/item_image"
-            tools:orientation="horizontal"
-            android:layout_marginBottom="8dp"/>
-
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnWish"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/giftDescText"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:text="确入画卷"
-                android:textColor="#8B4513"
+                android:layout_marginTop="10dp"
+                android:lineSpacingExtra="5dp"
+                android:textColor="#34495E"
                 android:textSize="14sp"
-                app:strokeColor="#8B4513"
-                app:cornerRadius="20dp"
+                tools:text="雨过天青云破处。此茶承承袭宋代审美..." />
 
-                app:icon="@drawable/ic_heart"
-                app:iconTint="#8B4513"
-                app:iconGravity="textStart"/>
-        </RelativeLayout>
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnWish"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:text="@string/confirmed"
+                    android:textColor="#8B4513"
+                    android:textSize="14sp"
+                    app:strokeColor="#8B4513"
+                    app:cornerRadius="20dp"
+                    app:icon="@drawable/ic_heart"
+                    app:iconTint="#8B4513"
+                    app:iconGravity="textStart"/>
+            </RelativeLayout>
+        </LinearLayout>
 
     </LinearLayout>
-
 </androidx.cardview.widget.CardView>

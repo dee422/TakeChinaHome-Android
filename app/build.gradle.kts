@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     kotlin("kapt") // 添加这一行
+    // ... 其他插件
+    id("kotlin-kapt")
 }
 
 android {
@@ -70,4 +72,10 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")
     kapt("com.github.bumptech.glide:compiler:4.16.0")
     implementation("com.google.code.gson:gson:2.10.1")
+
+    val room_version = "2.6.1" // 确保使用 2026 年的稳定版本
+
+    implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.room:room-ktx:$room_version")
+    kapt("androidx.room:room-compiler:$room_version") // 如果使用 Kotlin，请确保启用了 kapt 插件
 }
