@@ -2,21 +2,14 @@ package com.dee.android.pbl.takechinahome
 
 import android.annotation.SuppressLint
 import android.content.ContentValues
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.RectF
-import android.graphics.Typeface
+import android.graphics.*
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
 import android.view.View
-import android.widget.ImageView
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -33,6 +26,8 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 class HomeActivity : AppCompatActivity() {
 
@@ -61,9 +56,13 @@ class HomeActivity : AppCompatActivity() {
         startBGM()
         tvEmptyHint = findViewById(R.id.tvEmptyHint)
 
+        // 绑定登记意向按钮
+        findViewById<View>(R.id.btnRegisterIntent).setOnClickListener {
+            showWishFormDialog()
+        }
+
         val recyclerView = findViewById<RecyclerView>(R.id.giftRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
-
         setupTouchHelper(recyclerView)
 
         adapter = GiftAdapter(myGifts, { viewHolder ->
@@ -93,15 +92,39 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun showWishFormDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_wish_form, null)
+        val etName = dialogView.findViewById<EditText>(R.id.etName)
+        val etContact = dialogView.findViewById<EditText>(R.id.etContact)
+        val etCommTime = dialogView.findViewById<EditText>(R.id.etCommTime)
+        val btnSubmit = dialogView.findViewById<Button>(R.id.btnSubmitWish)
+
+        val prefs = getSharedPreferences("UserPrefs", MODE_PRIVATE)
+        etName.setText(prefs.getString("saved_name", ""))
+        etContact.setText(prefs.getString("saved_contact", ""))
+        etCommTime.setText(prefs.getString("saved_comm_time", ""))
+
+        val dialog = MaterialAlertDialogBuilder(this).setView(dialogView).create()
+
+        btnSubmit.setOnClickListener {
+            prefs.edit {
+                putString("saved_name", etName.text.toString())
+                putString("saved_contact", etContact.text.toString())
+                putString("saved_comm_time", etCommTime.text.toString())
+            }
+            Toast.makeText(this, "客户意向已登记", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
+        dialog.show()
+    }
+
     private fun showGiftDetailDialog(gift: Gift) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_gift_custom, null)
         val etText = dialogView.findViewById<TextInputEditText>(R.id.etCustomText)
         val etQuantity = dialogView.findViewById<TextInputEditText>(R.id.etCustomQuantity)
         val etDate = dialogView.findViewById<TextInputEditText>(R.id.etCustomDate)
         val etNotes = dialogView.findViewById<TextInputEditText>(R.id.etCustomNotes)
-        val tvTitle = dialogView.findViewById<TextView>(R.id.tvCustomTitle)
 
-        tvTitle.text = getString(R.string.custom_title_format, gift.name)
         etText.setText(gift.customText)
         etQuantity.setText(gift.customQuantity)
         etDate.setText(gift.customDeliveryDate)
@@ -114,46 +137,39 @@ class HomeActivity : AppCompatActivity() {
                 gift.customQuantity = etQuantity.text.toString()
                 gift.customDeliveryDate = etDate.text.toString()
                 gift.customNotes = etNotes.text.toString()
-
-                gift.isSaved = true // 关键：标记该礼品已定制！
-
+                gift.isSaved = true
                 cacheGiftsLocally()
-                Toast.makeText(this, "定制信息已存入「${gift.name}」", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "已加入清单", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("暂不定制", null)
+            .setNegativeButton("取消", null)
             .show()
     }
 
     private fun generateOrderImage() {
         val activeGifts = myGifts.filter { it.isSaved }
-
         if (activeGifts.isEmpty()) {
-            Toast.makeText(this, "尚未确入任何礼品，画卷无从落笔", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "画卷空空，请先「确入画卷」添加礼品", Toast.LENGTH_SHORT).show()
             return
         }
 
+        val prefs = getSharedPreferences("UserPrefs", MODE_PRIVATE)
+        val name = prefs.getString("saved_name", "匿名官") ?: "匿名官"
+        val contact = prefs.getString("saved_contact", "未留联系方式") ?: "未留联系方式"
+        val time = prefs.getString("saved_comm_time", "随时可叙") ?: "随时可叙"
+
         val width = 1080
-        var totalHeight = 800
+        var totalHeight = 1000
         val paint = Paint().apply {
             isAntiAlias = true
             typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
         }
 
         val itemHeights = mutableListOf<Float>()
-
-        // 1. 动态计算高度（由于增加了日期和备注，每个条目的基础高度稍微调大）
         activeGifts.forEach { gift ->
             paint.textSize = 40f
-            val safeReq = gift.customText ?: ""
-            val safeNotes = gift.customNotes ?: ""
-
-            // 计算定制需求行数
-            val reqLines = splitTextIntoLines("定制需求：$safeReq", 850, paint).size
-            // 计算备注行数
-            val noteLines = splitTextIntoLines("备注说明：$safeNotes", 850, paint).size
-
-            // 基础高度(380f) + 定制行高 + 备注行高
-            val h = 380f + (reqLines * 60f) + (noteLines * 60f)
+            val reqLines = splitTextIntoLines("刻花/底款：${gift.customText ?: ""}", 850, paint).size
+            val noteLines = splitTextIntoLines("特别叮嘱：${gift.customNotes ?: ""}", 850, paint).size
+            val h = 420f + (reqLines * 60f) + (noteLines * 60f)
             itemHeights.add(h)
             totalHeight += h.toInt()
         }
@@ -161,94 +177,86 @@ class HomeActivity : AppCompatActivity() {
         try {
             val bitmap = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            canvas.drawColor(Color.parseColor("#FDF5E6"))
+            canvas.drawColor(Color.parseColor("#FDF5E6")) // 宣纸背景
 
+            // --- 标题 ---
             paint.color = Color.BLACK
             paint.textSize = 80f
             paint.textAlign = Paint.Align.CENTER
             paint.isFakeBoldText = true
-            canvas.drawText("岁时礼序 · 订购清单", width / 2f, 220f, paint)
+            canvas.drawText("岁时礼序 · 订购清单", width / 2f, 180f, paint)
 
+            // --- 顶部名帖信息 ---
             paint.textAlign = Paint.Align.LEFT
-            var currentY = 450f
+            paint.isFakeBoldText = false
+            paint.textSize = 45f
+            paint.color = Color.parseColor("#B22222") // 朱红
+            canvas.drawText("【名帖 · 登记意向】", 100f, 300f, paint)
 
+            paint.color = Color.BLACK
+            paint.textSize = 38f
+            canvas.drawText("联系人：$name", 130f, 370f, paint)
+            canvas.drawText("联系方式：$contact", 130f, 430f, paint)
+            canvas.drawText("便宜时间：$time", 130f, 490f, paint)
+
+            paint.color = Color.parseColor("#8B4513")
+            canvas.drawLine(100f, 540f, width - 100f, 540f, paint)
+
+            // --- 礼品细节 ---
+            var currentY = 650f
             activeGifts.forEachIndexed { index, gift ->
-                val safeName = gift.name ?: "未知礼品"
-                val safeSpec = gift.spec ?: "标准"
-                val safeQty = gift.customQuantity ?: "1"
-                val safeReq = gift.customText ?: ""
-                val safeDate = gift.customDeliveryDate ?: "待定"
-                val safeNotes = gift.customNotes ?: ""
-
-                // A. 商品标题
                 paint.textSize = 50f
                 paint.isFakeBoldText = true
                 paint.color = Color.BLACK
-                canvas.drawText("${index + 1}. $safeName", 100f, currentY, paint)
+                canvas.drawText("${index + 1}. ${gift.name}", 100f, currentY, paint)
 
-                // B. 规格与数量
-                paint.textSize = 38f
                 paint.isFakeBoldText = false
+                paint.textSize = 38f
                 paint.color = Color.parseColor("#8B4513")
-                canvas.drawText("规格：$safeSpec   数量：$safeQty", 120f, currentY + 80f, paint)
+                canvas.drawText("数量：${gift.customQuantity ?: "1"}   交货期：${gift.customDeliveryDate ?: "按约"}", 130f, currentY + 80f, paint)
 
-                // C. 意向登记（交货日期）
-                paint.color = Color.parseColor("#B22222")
-                canvas.drawText("意向日期：$safeDate", 120f, currentY + 140f, paint)
-
-                // D. 定制需求（多行）
                 paint.color = Color.BLACK
-                var textY = currentY + 210f
-                val reqLines = splitTextIntoLines("定制需求：${if(safeReq.isEmpty()) "无" else safeReq}", 850, paint)
-                reqLines.forEach { line ->
-                    canvas.drawText(line, 120f, textY, paint)
-                    textY += 60f
-                }
-
-                // E. 备注说明（多行）
-                if (safeNotes.isNotEmpty()) {
-                    paint.color = Color.GRAY
-                    val noteLines = splitTextIntoLines("备注说明：$safeNotes", 850, paint)
-                    noteLines.forEach { line ->
-                        canvas.drawText(line, 120f, textY, paint)
-                        textY += 60f
-                    }
-                }
+                var textY = currentY + 150f
+                val reqLines = splitTextIntoLines("刻花/底款：${if(gift.customText.isNullOrEmpty()) "随缘" else gift.customText}", 850, paint)
+                reqLines.forEach { canvas.drawText(it, 130f, textY, paint); textY += 60f }
+                val noteLines = splitTextIntoLines("特别叮嘱：${if(gift.customNotes.isNullOrEmpty()) "无" else gift.customNotes}", 850, paint)
+                noteLines.forEach { canvas.drawText(it, 130f, textY, paint); textY += 60f }
 
                 currentY += itemHeights[index]
                 paint.color = Color.parseColor("#DCDCDC")
                 canvas.drawLine(100f, currentY - 50f, width - 100f, currentY - 50f, paint)
             }
 
-            // 页脚落款
-            val footerY = totalHeight - 250f
+            // --- 落款区：阴文印章 + 日期 ---
+            val dateY = totalHeight - 100f
+            paint.textAlign = Paint.Align.RIGHT
             paint.color = Color.BLACK
             paint.textSize = 38f
-            paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText("落款：${getSavedContact()}", width - 120f, footerY, paint)
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date())
+            canvas.drawText("生成日期：$today", width - 100f, dateY, paint)
 
-            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA).format(java.util.Date())
-            canvas.drawText("日期：$today", width - 120f, footerY + 80f, paint)
+            // 阴文印章布局
+            val sealSize = 150f
+            val sealX = width - 480f
+            val sealY = dateY - 240f // 在日期斜上方
 
-            // 官印
-            val sealSize = 120f
-            val sealX = width - 580f
-            val sealY = footerY - 40f
+            // 1. 实心朱红底座
             paint.style = Paint.Style.FILL
             paint.color = Color.parseColor("#B22222")
             canvas.drawRect(sealX, sealY, sealX + sealSize, sealY + sealSize, paint)
+
+            // 2. 白色阴文字
             paint.color = Color.WHITE
-            paint.textSize = 35f
             paint.textAlign = Paint.Align.CENTER
             paint.isFakeBoldText = true
-            canvas.drawText("岁时", sealX + sealSize / 2, sealY + 50f, paint)
-            canvas.drawText("礼序", sealX + sealSize / 2, sealY + 100f, paint)
+            paint.textSize = 45f
+            canvas.drawText("岁时", sealX + sealSize/2, sealY + 65f, paint)
+            canvas.drawText("礼序", sealX + sealSize/2, sealY + 125f, paint)
 
             saveBitmapToGallery(bitmap)
 
         } catch (e: Exception) {
-            Log.e("TakeChinaHome", "绘制异常: ${e.message}")
-            Toast.makeText(this, "画卷绘制失败", Toast.LENGTH_SHORT).show()
+            Log.e("Log", "绘制异常: ${e.message}")
         }
     }
 
@@ -272,107 +280,47 @@ class HomeActivity : AppCompatActivity() {
                 put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/TakeChinaHome")
             }
         }
-
         val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-
         lifecycleScope.launch {
-            val success = try {
-                uri?.let { imageUri ->
-                    contentResolver.openOutputStream(imageUri)?.use { stream ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-                    }
-                } != null
-            } catch (e: Exception) {
-                false
+            uri?.let { imageUri ->
+                contentResolver.openOutputStream(imageUri)?.use { stream ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                }
             }
-
-            if (success) {
-                showImagePreviewDialog(bitmap)
-                Toast.makeText(this@HomeActivity, "清单已入画卷", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this@HomeActivity, "画卷保存失败", Toast.LENGTH_SHORT).show()
-            }
+            showImagePreviewDialog(bitmap)
         }
     }
 
     private fun showImagePreviewDialog(bitmap: Bitmap) {
-        // 创建一个滚动视图包裹图片，防止长图被截断
-        val scrollView = android.widget.ScrollView(this).apply {
-            layoutParams = android.widget.FrameLayout.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                (resources.displayMetrics.heightPixels * 0.6).toInt() // 对话框最高占屏幕60%
-            )
+        val scrollView = ScrollView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.6).toInt())
         }
-
-        val container = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(40, 40, 40, 40)
-            gravity = android.view.Gravity.CENTER
-        }
-
-        val imageView = ImageView(this).apply {
-            setImageBitmap(bitmap)
-            adjustViewBounds = true
-            scaleType = ImageView.ScaleType.FIT_CENTER
-        }
-
-        val hintView = TextView(this).apply {
-            text = "「已存至相册」\n请移步系统相册查看完整画卷。"
-            textSize = 14f
-            gravity = android.view.Gravity.CENTER
-            setTextColor(Color.parseColor("#8B4513"))
-            setPadding(0, 40, 0, 0)
-        }
-
+        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); gravity = android.view.Gravity.CENTER }
+        val imageView = ImageView(this).apply { setImageBitmap(bitmap); adjustViewBounds = true; scaleType = ImageView.ScaleType.FIT_CENTER }
+        val hintView = TextView(this).apply { text = "「已存至相册」\n请移步系统相册查看完整画卷。"; textSize = 14f; gravity = android.view.Gravity.CENTER; setTextColor(Color.parseColor("#8B4513")); setPadding(0, 40, 0, 0) }
         container.addView(imageView)
         container.addView(hintView)
         scrollView.addView(container)
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle("岁时礼序 · 成单预览")
-            .setView(scrollView)
-            .setPositiveButton("确入", null)
-            .show()
+        MaterialAlertDialogBuilder(this).setTitle("成单预览").setView(scrollView).setPositiveButton("确入", null).show()
     }
 
-    private fun getSavedContact(): String {
-        return getSharedPreferences("UserPrefs", MODE_PRIVATE).getString("saved_contact", "匿名客户") ?: "匿名客户"
-    }
-
-    private fun updateEmptyView() {
-        tvEmptyHint?.visibility = if (myGifts.isEmpty()) View.VISIBLE else View.GONE
-    }
+    private fun updateEmptyView() { tvEmptyHint?.visibility = if (myGifts.isEmpty()) View.VISIBLE else View.GONE }
 
     private fun setupTouchHelper(recyclerView: RecyclerView) {
         val callback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
             override fun isItemViewSwipeEnabled(): Boolean = false
             override fun onMove(r: RecyclerView, v: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
-
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                 val position = viewHolder.adapterPosition
-                val giftToDelete = myGifts[position]
-                AlertDialog.Builder(this@HomeActivity)
-                    .setTitle("移出画卷")
-                    .setMessage("确定要将「${giftToDelete.name}」移出吗？")
-                    .setPositiveButton("确定") { _, _ -> performDelete(position, giftToDelete) }
-                    .setNegativeButton("取消") { dialog, _ ->
-                        adapter.notifyItemChanged(position)
-                        dialog.dismiss()
-                    }
-                    .setCancelable(false).show()
+                val gift = myGifts[position]
+                AlertDialog.Builder(this@HomeActivity).setTitle("移出画卷").setMessage("确定要移出「${gift.name}」吗？")
+                    .setPositiveButton("确定") { _, _ -> performDelete(position, gift) }
+                    .setNegativeButton("取消") { d, _ -> adapter.notifyItemChanged(position); d.dismiss() }.show()
             }
-
             override fun onChildDraw(c: Canvas, rv: RecyclerView, vh: RecyclerView.ViewHolder, dX: Float, dY: Float, actionState: Int, isCurrentlyActive: Boolean) {
-                val itemView = vh.itemView
                 if (dX < 0) {
+                    val itemView = vh.itemView
                     c.drawRect(RectF(itemView.right.toFloat() + dX, itemView.top.toFloat(), itemView.right.toFloat(), itemView.bottom.toFloat()), deletePaint)
-                    ContextCompat.getDrawable(this@HomeActivity, R.drawable.ic_discard)?.let { icon ->
-                        val iconSize = (itemView.height * 0.25).toInt()
-                        val margin = (itemView.height - iconSize) / 2
-                        icon.setBounds(itemView.right - margin - iconSize, itemView.top + margin, itemView.right - margin, itemView.bottom - margin)
-                        icon.setTint(Color.WHITE)
-                        icon.draw(c)
-                    }
                 }
                 super.onChildDraw(c, rv, vh, dX, dY, actionState, isCurrentlyActive)
             }
@@ -386,47 +334,25 @@ class HomeActivity : AppCompatActivity() {
         cacheGiftsLocally()
         adapter.notifyItemRemoved(position)
         updateEmptyView()
-        Snackbar.make(findViewById(android.R.id.content), "已移出：${deletedGift.name}", Snackbar.LENGTH_LONG)
-            .setAction("撤销") {
-                myGifts.add(position, deletedGift)
-                cacheGiftsLocally()
-                adapter.notifyItemInserted(position)
-                updateEmptyView()
-            }.show()
     }
 
     private fun loadGiftsFromServer(isInitial: Boolean = false) {
         lifecycleScope.launch {
             try {
                 val response = RetrofitClient.instance.getGifts()
-                myGifts.clear()
-                myGifts.addAll(response)
-                @SuppressLint("NotifyDataSetChanged")
-                adapter.notifyDataSetChanged()
-                cacheGiftsLocally()
-                updateEmptyView()
-                if (isInitial) {
-                    getSharedPreferences("DataCache", MODE_PRIVATE).edit { putBoolean("is_first_run", false) }
-                }
-            } catch (e: Exception) {
-                Log.e("TakeChinaHome", "API异常: ${e.localizedMessage}")
-            }
+                myGifts.clear(); myGifts.addAll(response)
+                adapter.notifyDataSetChanged(); cacheGiftsLocally(); updateEmptyView()
+                if (isInitial) getSharedPreferences("DataCache", MODE_PRIVATE).edit { putBoolean("is_first_run", false) }
+            } catch (e: Exception) { Log.e("Log", "API Err") }
         }
     }
 
-    @SuppressLint("NotifyDataSetChanged")
     private fun loadCachedGifts() {
         val json = getSharedPreferences("DataCache", MODE_PRIVATE).getString("cached_gifts", null)
         if (!json.isNullOrEmpty()) {
-            try {
-                val type = object : TypeToken<MutableList<Gift>>() {}.type
-                val cachedList: MutableList<Gift> = gson.fromJson(json, type)
-                myGifts.clear()
-                myGifts.addAll(cachedList)
-                adapter.notifyDataSetChanged()
-            } catch (e: Exception) {
-                Log.e("TakeChinaHome", "加载缓存失败: ${e.message}")
-            }
+            val type = object : TypeToken<MutableList<Gift>>() {}.type
+            myGifts.clear(); myGifts.addAll(gson.fromJson(json, type))
+            adapter.notifyDataSetChanged()
         }
     }
 
@@ -435,17 +361,11 @@ class HomeActivity : AppCompatActivity() {
             try {
                 val response = RetrofitClient.instance.getGifts()
                 if (response.isNotEmpty()) {
-                    myGifts.clear()
-                    myGifts.addAll(response)
-                    @SuppressLint("NotifyDataSetChanged")
-                    adapter.notifyDataSetChanged()
-                    cacheGiftsLocally()
-                    updateEmptyView()
-                    Toast.makeText(this@HomeActivity, "画卷已重新同步", Toast.LENGTH_SHORT).show()
+                    myGifts.clear(); myGifts.addAll(response)
+                    adapter.notifyDataSetChanged(); cacheGiftsLocally(); updateEmptyView()
+                    Toast.makeText(this@HomeActivity, "同步成功", Toast.LENGTH_SHORT).show()
                 }
-            } catch (_: Exception) {
-                Toast.makeText(this@HomeActivity, "同步失败，请检查网络", Toast.LENGTH_SHORT).show()
-            } finally { swipe.isRefreshing = false }
+            } catch (_: Exception) { } finally { swipe.isRefreshing = false }
         }
     }
 
@@ -454,7 +374,7 @@ class HomeActivity : AppCompatActivity() {
         try {
             mediaPlayer = MediaPlayer.create(this, R.raw.bg_music)
             mediaPlayer?.apply { isLooping = true; setVolume(0.6f, 0.6f); start() }
-        } catch (e: Exception) { Log.e("TakeChinaHome", "BGM加载异常", e) }
+        } catch (e: Exception) { }
     }
 
     private fun cacheGiftsLocally() {

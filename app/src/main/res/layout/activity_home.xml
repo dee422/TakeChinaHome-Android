@@ -28,6 +28,18 @@
                 android:letterSpacing="0.2" />
         </androidx.appcompat.widget.Toolbar>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRegisterIntent"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="「成单前请于此处登记名帖」"
+            android:textColor="#8B4513"
+            android:letterSpacing="0.1"
+            app:icon="@drawable/ic_edit"
+            app:iconTint="#8B4513"
+            android:layout_marginHorizontal="16dp"/>
+
         <View
             android:layout_width="match_parent"
             android:layout_height="4dp"

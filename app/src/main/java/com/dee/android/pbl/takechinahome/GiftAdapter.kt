@@ -12,11 +12,12 @@ import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
 
 class GiftAdapter(
     private val giftList: List<Gift>,
     private val onNameLongClick: (RecyclerView.ViewHolder) -> Unit,
-    private val onItemClick: (Gift) -> Unit // 处理详情点击
+    private val onCustomClick: (Gift) -> Unit // 处理“确入画卷”点击，弹出定制对话框
 ) : RecyclerView.Adapter<GiftAdapter.GiftViewHolder>() {
 
     class GiftViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -25,7 +26,8 @@ class GiftAdapter(
         val specText: TextView = view.findViewById(R.id.giftSpecText)
         val descText: TextView = view.findViewById(R.id.giftDescText)
         val carouselRecycler: RecyclerView = view.findViewById(R.id.imageCarouselRecyclerView)
-        val wishButton: View = view.findViewById(R.id.btnWish)
+        // 关键：这里类型必须是 MaterialButton 才能在后面设置 Icon 和 Text
+        val btnWish: MaterialButton = view.findViewById(R.id.btnWish)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GiftViewHolder {
@@ -38,59 +40,62 @@ class GiftAdapter(
     override fun onBindViewHolder(holder: GiftViewHolder, position: Int) {
         val gift = giftList[position]
 
+        // 1. 基础数据绑定 (根据 Gift.kt 的定义)
         holder.nameText.text = gift.name
-        holder.dateText.text = gift.deadline
-        holder.specText.text = gift.spec
-        holder.descText.text = gift.desc
+        holder.specText.text = "规格：${gift.spec}"
+        holder.descText.text = gift.desc // 修正：对应 Gift.kt 中的 desc 字段
+        holder.dateText.text = "截止: ${gift.deadline}"
 
-        // 点击整个条目查看详情
-        holder.itemView.setOnClickListener {
-            onItemClick(gift)
+        // 2. 配置横向图片轮播
+        holder.carouselRecycler.layoutManager =
+            LinearLayoutManager(holder.itemView.context, LinearLayoutManager.HORIZONTAL, false)
+        holder.carouselRecycler.adapter = ImageAdapter(gift.images)
+
+        // 3. 按钮状态管理
+        // 根据 isSaved 字段动态切换文案和图标
+        holder.btnWish.text = if (gift.isSaved) "已入画卷" else "确入画卷"
+        holder.btnWish.setIconResource(if (gift.isSaved) R.drawable.ic_save else R.drawable.ic_heart)
+
+        // 4. 点击按钮弹出定制对话框 (dialog_gift_custom)
+        holder.btnWish.setOnClickListener {
+            onCustomClick(gift)
         }
 
-        // 长按名称触发侧滑
+        // 5. 长按名称触发 (用于删除或拖拽)
         holder.nameText.setOnLongClickListener {
             onNameLongClick(holder)
             true
         }
 
-        holder.wishButton.setOnClickListener {
-            showWishFormDialog(holder.itemView.context, gift)
-        }
-
-        holder.carouselRecycler.apply {
-            layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-            adapter = ImageAdapter(gift.images)
-            setHasFixedSize(true)
-            setOnTouchListener { v, _ ->
-                v.parent.requestDisallowInterceptTouchEvent(true)
-                false
-            }
-        }
+        // 6. 按照要求，彻底取消整个 Item 的点击事件
+        holder.itemView.setOnClickListener(null)
     }
 
-    private fun showWishFormDialog(context: Context, gift: Gift) {
+    override fun getItemCount() = giftList.size
+
+    // 该方法现在主要由 HomeActivity 调用，用于全局联系人登记
+    fun showWishFormDialog(context: Context) {
         val dialog = BottomSheetDialog(context)
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_wish_form, null)
         dialog.setContentView(view)
 
+        // 确保 dialog_wish_form.xml 包含这些 ID
+        val tvTitle = view.findViewById<TextView>(R.id.tvTitle)
+        val etName = view.findViewById<EditText>(R.id.etName)
         val etContact = view.findViewById<EditText>(R.id.etContact)
         val btnSubmit = view.findViewById<Button>(R.id.btnSubmitWish)
-        val tvTitle = view.findViewById<TextView>(R.id.tvTitle)
 
-        tvTitle.text = "登记意向：${gift.name}"
+        tvTitle?.text = "「名帖登记」"
 
         btnSubmit.setOnClickListener {
             val contact = etContact.text.toString()
             if (contact.isBlank()) {
-                Toast.makeText(context, "请留下联系方式", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "请落笔联系方式", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(context, "记录成功，稍后联系您", Toast.LENGTH_SHORT).show()
+                // 保存逻辑建议放在 Activity 中通过 SharedPreferences 实现
                 dialog.dismiss()
             }
         }
         dialog.show()
     }
-
-    override fun getItemCount() = giftList.size
 }
