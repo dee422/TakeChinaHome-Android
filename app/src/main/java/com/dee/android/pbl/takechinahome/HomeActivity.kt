@@ -50,19 +50,23 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
+        // --- 方案 A：标准 Toolbar 设置 ---
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
         if (toolbar != null) {
             setSupportActionBar(toolbar)
-            supportActionBar?.setDisplayShowTitleEnabled(false)
+            // 允许显示标题，会自动应用 XML 中的 app:title
+            supportActionBar?.setDisplayShowTitleEnabled(true)
         }
 
         startBGM()
         tvEmptyHint = findViewById(R.id.tvEmptyHint)
 
+        // 名帖登记点击
         findViewById<View>(R.id.btnRegisterIntent).setOnClickListener {
             showWishFormDialog()
         }
 
+        // RecyclerView 初始化
         val recyclerView = findViewById<RecyclerView>(R.id.giftRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
         setupTouchHelper(recyclerView)
@@ -74,6 +78,7 @@ class HomeActivity : AppCompatActivity() {
         })
         recyclerView.adapter = adapter
 
+        // 数据加载逻辑
         loadCachedGifts()
 
         val prefs = getSharedPreferences("DataCache", MODE_PRIVATE)
@@ -89,18 +94,20 @@ class HomeActivity : AppCompatActivity() {
 
         updateEmptyView()
 
+        // 下拉刷新
         val swipeRefreshLayout = findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
         swipeRefreshLayout.setColorSchemeColors("#8B4513".toColorInt())
         swipeRefreshLayout.setOnRefreshListener {
             refreshGifts(swipeRefreshLayout)
         }
 
+        // FAB 生成清单
         findViewById<View>(R.id.fabGenerate).setOnClickListener {
             generateOrderImage()
         }
     }
 
-    // --- 新增：菜单栏逻辑 ---
+    // --- 菜单栏：关联 home_menu.xml ---
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.home_menu, menu)
         return true
@@ -120,7 +127,7 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    // --- 新增：古风帮助弹窗 ---
+    // --- 古风帮助弹窗：已修复 val 报错 ---
     private fun showHelpDialog() {
         val helpTips = listOf(
             "【回望】下拉画卷可同步云端数据，并重置画卷。",
@@ -153,7 +160,7 @@ class HomeActivity : AppCompatActivity() {
                 textSize = 15f
                 setTextColor(Color.parseColor("#4A4A4A"))
                 setPadding(0, 12, 0, 12)
-                // 修正这里：第一个参数是额外间距（设为 0f），第二个是倍数（1.3f）
+                // 彻底修复：调用方法而非直接赋值
                 setLineSpacing(0f, 1.3f)
                 typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
             }
@@ -162,7 +169,7 @@ class HomeActivity : AppCompatActivity() {
 
         MaterialAlertDialogBuilder(this)
             .setView(container)
-            .setPositiveButton("敬悉", null) // 改为敬悉，表示用户已恭敬地知晓。
+            .setPositiveButton("敬悉", null)
             .show()
     }
 
@@ -303,7 +310,7 @@ class HomeActivity : AppCompatActivity() {
             paint.textSize = 38f
             canvas.drawText("联系人：$name", 130f, 370f, paint)
             canvas.drawText("联系方式：$contact", 130f, 430f, paint)
-            canvas.drawText("便宜时间：$time", 130f, 490f, paint)
+            canvas.drawText("便利时间：$time", 130f, 490f, paint)
 
             paint.color = Color.parseColor("#8B4513")
             paint.strokeWidth = 2f
@@ -340,21 +347,18 @@ class HomeActivity : AppCompatActivity() {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date())
             canvas.drawText("生成日期：$today", width - 100f, dateY, paint)
 
+            // 印章绘制
             val sealSize = 150f
             val sealX = width - 480f
             val sealY = dateY - 240f
-
             val sealPaint = Paint(paint).apply { clearShadowLayer() }
             sealPaint.style = Paint.Style.FILL
             sealPaint.color = Color.parseColor("#B22222")
-            sealPaint.pathEffect = DiscretePathEffect(1.5f, 4f)
             canvas.drawRect(sealX, sealY, sealX + sealSize, sealY + sealSize, sealPaint)
-
             sealPaint.color = Color.WHITE
             sealPaint.textAlign = Paint.Align.CENTER
             sealPaint.isFakeBoldText = true
             sealPaint.textSize = 45f
-            sealPaint.pathEffect = null
             canvas.drawText("岁时", sealX + sealSize/2, sealY + 65f, sealPaint)
             canvas.drawText("礼序", sealX + sealSize/2, sealY + 125f, sealPaint)
 

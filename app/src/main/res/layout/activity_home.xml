@@ -13,50 +13,26 @@
         android:background="#FDF5E6"
         app:elevation="0dp">
 
-        <RelativeLayout
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="12dp"
-            android:paddingHorizontal="16dp">
-
-            <TextView
-                android:id="@+id/tvAppTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentStart="true"
-                android:layout_centerVertical="true"
-                android:layout_toStartOf="@+id/toolbar_container"
-                android:text="岁时礼序 · 礼品日历"
-                android:textColor="#8B4513"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="end" />
-
-            <LinearLayout
-                android:id="@+id/toolbar_container"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true">
-                <androidx.appcompat.widget.Toolbar
-                    android:id="@+id/toolbar"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:contentInsetStart="0dp" />
-            </LinearLayout>
-        </RelativeLayout>
+            android:layout_height="?attr/actionBarSize"
+            app:title="岁时礼序 · 礼品日历"
+            app:titleTextColor="#8B4513"
+            app:titleTextAppearance="@style/TextAppearance.AppCompat.Widget.ActionBar.Title"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
 
         <LinearLayout
             android:id="@+id/btnRegisterIntent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="0dp"
             android:layout_marginBottom="12dp"
             android:background="?attr/selectableItemBackground"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:padding="4dp">
 
             <ImageView
                 android:layout_width="22dp"
@@ -116,6 +92,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="24dp"
+        android:contentDescription="生成清单"
         app:backgroundTint="#8B4513"
         app:srcCompat="@drawable/ic_save"
         app:tint="#FFFFFF"
