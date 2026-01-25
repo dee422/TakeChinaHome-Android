@@ -1,16 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FBF8EF"> <androidx.recyclerview.widget.RecyclerView
-    android:id="@+id/rvExchange"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:clipToPadding="false"
-    android:padding="8dp"
-    tools:listitem="@layout/item_gift" />
+    android:background="#FBF8EF">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbarExchange"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="#8B4513"
+        app:title="雅鉴置换市集"
+        app:titleTextColor="#FFFFFF"
+        app:navigationIcon="?attr/homeAsUpIndicator"
+        app:navigationIconTint="#FFFFFF" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvExchange"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/toolbarExchange"
+        android:clipToPadding="false"
+        android:padding="8dp" />
+
+    <TextView
+        android:id="@+id/tvEmptyState"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="暂无雅物挂出，待君刊登"
+        android:textColor="#998B4513"
+        android:layout_centerInParent="true"
+        android:visibility="gone" />
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -31,7 +51,7 @@
             android:elevation="4dp"
             android:paddingHorizontal="12dp"
             android:paddingVertical="6dp"
-            android:text="再引荐 10 人即可开启置换"
+            android:text="引荐 10 人即可开启置换"
             android:textColor="#8B4513"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -43,7 +63,6 @@
             android:contentDescription="发布置换"
             app:backgroundTint="#BDBDBD"
             app:elevation="6dp"
-            app:fabSize="normal"
             app:srcCompat="@android:drawable/ic_input_add"
             app:tint="@android:color/white" />
     </LinearLayout>

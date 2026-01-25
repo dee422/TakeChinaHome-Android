@@ -15,8 +15,6 @@ data class Gift(
     var spec: String = "",
     var desc: String = "",
 
-    // @Ignore tells Room not to save the list (which requires a TypeConverter)
-    // But Gson will still save/load this from your JSON cache.
     @Ignore
     var images: List<String> = mutableListOf(),
 
@@ -25,7 +23,5 @@ data class Gift(
     var customDeliveryDate: String = "",
     var customNotes: String = "",
     var isSaved: Boolean = false
-) : Serializable {
-    // Empty constructor required by some versions of Room/Serialization
-    constructor() : this("", "", "", "", "", "", mutableListOf(), "", "1", "", "", false)
-}
+) : Serializable
+// 删除了多余的 constructor() 块
