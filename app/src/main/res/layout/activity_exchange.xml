@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FBF8EF"> <androidx.recyclerview.widget.RecyclerView
+    android:id="@+id/rvExchange"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:padding="8dp"
+    tools:listitem="@layout/item_gift" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="20dp"
+        android:gravity="end"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvVipHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:background="@android:drawable/toast_frame"
+            android:backgroundTint="#F4EFE2"
+            android:elevation="4dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="再引荐 10 人即可开启置换"
+            android:textColor="#8B4513"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabUpload"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="发布置换"
+            app:backgroundTint="#BDBDBD"
+            app:elevation="6dp"
+            app:fabSize="normal"
+            app:srcCompat="@android:drawable/ic_input_add"
+            app:tint="@android:color/white" />
+    </LinearLayout>
+
+</RelativeLayout>

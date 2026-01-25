@@ -1,20 +1,31 @@
 package com.dee.android.pbl.takechinahome
 
+import androidx.room.Entity
+import androidx.room.Ignore
+import androidx.room.PrimaryKey
 import java.io.Serializable
 
+@Entity(tableName = "gifts")
 data class Gift(
-    val id: String,
-    val name: String,
-    val label: String,
-    val deadline: String,
-    val spec: String,
-    val desc: String,
-    val images: List<String>,
+    @PrimaryKey
+    var id: String = "",
+    var name: String = "",
+    var label: String = "",
+    var deadline: String = "",
+    var spec: String = "",
+    var desc: String = "",
 
-    // 【新增定制字段】这些数据仅保存在手机本地内存中，用于生成清单图
-    var customText: String = "",       // 刻花/底款内容
-    var customQuantity: String = "1",  // 订购数量
-    var customDeliveryDate: String = "",// 期望交货期
-    var customNotes: String = "",       // 其他备注
-    var isSaved: Boolean = false // 新增：标记是否已确认定制
-) : Serializable
+    // @Ignore tells Room not to save the list (which requires a TypeConverter)
+    // But Gson will still save/load this from your JSON cache.
+    @Ignore
+    var images: List<String> = mutableListOf(),
+
+    var customText: String = "",
+    var customQuantity: String = "1",
+    var customDeliveryDate: String = "",
+    var customNotes: String = "",
+    var isSaved: Boolean = false
+) : Serializable {
+    // Empty constructor required by some versions of Room/Serialization
+    constructor() : this("", "", "", "", "", "", mutableListOf(), "", "1", "", "", false)
+}

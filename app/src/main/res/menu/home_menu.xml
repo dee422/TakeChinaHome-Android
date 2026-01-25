@@ -1,14 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_profile"
+        android:title="个人名帖"
+        app:showAsAction="never" />
+
     <item
         android:id="@+id/action_toggle_music"
-        android:title="音律：开启" />
+        android:title="音律：开启"
+        app:showAsAction="never" />
 
     <item
         android:id="@+id/action_generate_order"
-        android:title="生成清单" />
+        android:title="生成清单"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_exchange"
+        android:title="雅鉴置换"
+        app:showAsAction="never" />
 
     <item
         android:id="@+id/action_help"
-        android:title="使用指南" />
+        android:title="使用指南"
+        app:showAsAction="never" />
 </menu>

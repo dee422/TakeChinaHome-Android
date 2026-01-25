@@ -5,11 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-// 暂时先把 User 表管起来，后续我们再把 Gift 表加进来
-@Database(entities = [User::class], version = 1, exportSchema = false)
+// 必须同时包含这三个实体，且 version 必须比你之前的版本号大 (比如改为 2)
+@Database(entities = [User::class, Gift::class, ExchangeGift::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
-
+    abstract fun exchangeDao(): ExchangeDao // 确保这里有新增的 Dao
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null

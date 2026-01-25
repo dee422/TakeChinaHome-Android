@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <ImageView
+            android:id="@+id/ivUploadPreview"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:scaleType="centerCrop"
+            android:src="@android:drawable/ic_menu_gallery"
+            android:background="#EEEEEE"
+            android:layout_marginBottom="12dp"
+            android:contentDescription="点击上传图片" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="藏品名"
+            android:textColor="#8B4513"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etUploadTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="如：景德镇青花盏"
+            android:minHeight="48dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="藏品故事"
+            android:textColor="#8B4513"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etUploadStory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:hint="述说此物的由来与缘分..."
+            android:minLines="3" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="置换意向"
+            android:textColor="#8B4513"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etUploadWant"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="您想换取什么样的雅物？"
+            android:minHeight="48dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="联系暗号"
+            android:textColor="#8B4513"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etUploadContact"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="微信号/手机号 (仅VIP可见)"
+            android:minHeight="48dp" />
+
+    </LinearLayout>
+</ScrollView>

@@ -49,10 +49,28 @@ class GiftAdapter(
         holder.dateText.text = "截止: ${gift.deadline}"
 
         // 2. 配置横向图片轮播
-        // 确保使用 LinearLayoutManager.HORIZONTAL 实现横向滑动
+        // --- 原代码 (第 52-55 行) ---
+        // holder.carouselRecycler.layoutManager =
+        //     LinearLayoutManager(holder.itemView.context, LinearLayoutManager.HORIZONTAL, false)
+        // holder.carouselRecycler.adapter = ImageAdapter(gift.images)
+
+
+        // --- 修改后的代码 ---
+        // 2. 配置横向图片轮播
         holder.carouselRecycler.layoutManager =
             LinearLayoutManager(holder.itemView.context, LinearLayoutManager.HORIZONTAL, false)
-        holder.carouselRecycler.adapter = ImageAdapter(gift.images)
+
+        // 关键点：增加空判断逻辑。
+        // 如果 images 为空（说明是被 Room 忽略了或者是数据库数据），
+        // 我们需要确保不传递一个空列表给 ImageAdapter，或者给它一个占位图。
+        if (gift.images.isNullOrEmpty()) {
+            // 方案 A：如果是数据库读取出的空数据，我们可以尝试手动恢复（如果你有缓存路径）
+            // 方案 B：或者先隐藏这个列表，避免显示空白白块
+            holder.carouselRecycler.visibility = View.GONE
+        } else {
+            holder.carouselRecycler.visibility = View.VISIBLE
+            holder.carouselRecycler.adapter = ImageAdapter(gift.images)
+        }
 
         // 3. 按钮状态：根据 isSaved 状态显示不同的文字和图标
         if (gift.isSaved) {

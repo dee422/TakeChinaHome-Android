@@ -32,6 +32,7 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.TakeChinaHome" />
+        <activity android:name=".ExchangeActivity" />
     </application>
 
 </manifest>

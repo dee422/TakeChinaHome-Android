@@ -59,10 +59,15 @@ class HomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Force clear old, broken image cache once
+        val fixPrefs = getSharedPreferences("DataCache", MODE_PRIVATE)
+        if (fixPrefs.getBoolean("image_fix_v3", true)) {
+            fixPrefs.edit().remove("cached_gifts").putBoolean("image_fix_v3", false).apply()
+        }
+
         lifecycleScope.launch {
             val db = AppDatabase.getDatabase(this@HomeActivity)
             val currentUser = db.userDao().getCurrentUser()
-
             if (currentUser == null) {
                 startActivity(Intent(this@HomeActivity, RegisterActivity::class.java))
                 finish()
@@ -74,23 +79,18 @@ class HomeActivity : AppCompatActivity() {
 
     private fun initHomeUI() {
         setContentView(R.layout.activity_home)
-
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayShowTitleEnabled(true)
 
         startBGM()
         tvEmptyHint = findViewById(R.id.tvEmptyHint)
 
-        // 登记名帖按钮
-        findViewById<View>(R.id.btnRegisterIntent).setOnClickListener {
-            showWishFormDialog()
-        }
+        findViewById<View>(R.id.btnRegisterIntent).setOnClickListener { showWishFormDialog() }
+        findViewById<View>(R.id.fabGenerate).setOnClickListener { generateOrderImage() }
 
         val recyclerView = findViewById<RecyclerView>(R.id.giftRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
-        // 初始化 Adapter：第一个 lambda 处理长按删除，第二个处理点击编辑
         adapter = GiftAdapter(myGifts, { gift, position ->
             showDeleteConfirmDialog(gift, position)
         }, { gift ->
@@ -99,27 +99,11 @@ class HomeActivity : AppCompatActivity() {
         recyclerView.adapter = adapter
 
         loadCachedGifts()
-
-        val prefs = getSharedPreferences("DataCache", MODE_PRIVATE)
-        if (prefs.getBoolean("is_first_run", true) && myGifts.isEmpty()) {
-            loadGiftsFromServer(isInitial = true)
-        }
-
-        if (prefs.getBoolean("is_first_help", true)) {
-            showHelpDialog()
-            prefs.edit { putBoolean("is_first_help", false) }
-        }
-
-        updateEmptyView()
+        if (myGifts.isEmpty()) loadGiftsFromServer(isInitial = true)
 
         findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout).apply {
             setColorSchemeColors("#8B4513".toColorInt())
             setOnRefreshListener { refreshGifts(this) }
-        }
-
-        // 生成清单悬浮按钮
-        findViewById<View>(R.id.fabGenerate).setOnClickListener {
-            generateOrderImage()
         }
     }
 
@@ -162,7 +146,6 @@ class HomeActivity : AppCompatActivity() {
         val etDate = dialogView.findViewById<TextInputEditText>(R.id.etCustomDate)
         val etNotes = dialogView.findViewById<TextInputEditText>(R.id.etCustomNotes)
 
-        // 回显已有数据
         etText.setText(gift.customText)
         etQuantity.setText(gift.customQuantity)
         etDate.setText(gift.customDeliveryDate)
@@ -171,23 +154,15 @@ class HomeActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setView(dialogView)
             .setPositiveButton("确入画卷") { _, _ ->
-                // 更新内存中的对象
                 gift.apply {
                     customText = etText.text.toString()
                     customQuantity = etQuantity.text.toString()
                     customDeliveryDate = etDate.text.toString()
                     customNotes = etNotes.text.toString()
-                    isSaved = true // 关键：标记已保存，否则无法生成清单
+                    isSaved = true
                 }
-
-                // 持久化到本地缓存
                 cacheGiftsLocally()
-
-                // 刷新列表显示（改变按钮文字和图标）
-                val index = myGifts.indexOf(gift)
-                if (index != -1) {
-                    adapter.notifyItemChanged(index)
-                }
+                adapter.notifyDataSetChanged()
                 Toast.makeText(this, "已加入清单", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("取消", null)
@@ -422,13 +397,14 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val response = RetrofitClient.instance.getGifts()
-                myGifts.clear()
-                myGifts.addAll(response)
-                adapter.notifyDataSetChanged()
-                cacheGiftsLocally()
-                updateEmptyView()
-                if (isInitial) getSharedPreferences("DataCache", MODE_PRIVATE).edit { putBoolean("is_first_run", false) }
-            } catch (e: Exception) { Log.e("Log", "API Err: ${e.message}") }
+                if (response.isNotEmpty()) {
+                    myGifts.clear()
+                    myGifts.addAll(response)
+                    adapter.notifyDataSetChanged()
+                    cacheGiftsLocally()
+                    updateEmptyView()
+                }
+            } catch (e: Exception) { Log.e("API", "Error: ${e.message}") }
         }
     }
 
@@ -507,11 +483,141 @@ class HomeActivity : AppCompatActivity() {
     override fun onPrepareOptionsMenu(menu: Menu?) = super.onPrepareOptionsMenu(menu).also {
         menu?.findItem(R.id.action_toggle_music)?.title = if (isMusicPlaying) "音律：奏鸣" else "音律：暂歇"
     }
-    override fun onOptionsItemSelected(item: MenuItem) = when (item.itemId) {
-        R.id.action_toggle_music -> { toggleMusic(); true }
-        R.id.action_generate_order -> { generateOrderImage(); true }
-        R.id.action_help -> { showHelpDialog(); true }
-        else -> super.onOptionsItemSelected(item)
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            // 1. 雅鉴置换跳转
+            R.id.action_exchange -> {
+                lifecycleScope.launch {
+                    try {
+                        val db = AppDatabase.getDatabase(this@HomeActivity)
+                        val user = db.userDao().getCurrentUser()
+
+                        // 测试环境设为 >= 0 确保能进入
+                        if (user != null && user.referralCount >= 0) {
+                            val intent = Intent(this@HomeActivity, ExchangeActivity::class.java)
+                            startActivity(intent)
+                        } else {
+                            // 如果 user 为空，引导其去注册或提示
+                            Toast.makeText(this@HomeActivity, "请先完善名帖信息", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("Exchange_Err", "跳转失败: ${e.message}")
+                        Toast.makeText(this@HomeActivity, "系统洗炼中，请稍后再试", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                true
+            }
+
+            // 2. 音乐开关
+            R.id.action_toggle_music -> {
+                toggleMusic()
+                true
+            }
+
+            // 3. 其他原有菜单
+            R.id.action_profile -> { showProfileEditDialog(); true }
+            R.id.action_generate_order -> { generateOrderImage(); true }
+            R.id.action_help -> { showHelpDialog(); true }
+
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun showProfileEditDialog() {
+        lifecycleScope.launch {
+            val db = AppDatabase.getDatabase(this@HomeActivity)
+            // 获取当前标记为 isCurrentUser 的用户
+            val currentUser = db.userDao().getCurrentUser() ?: return@launch
+
+            // 主容器：古风宣纸色
+            val container = LinearLayout(this@HomeActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(80, 60, 80, 60)
+                setBackgroundColor("#FBF8EF".toColorInt())
+            }
+
+            // 1. 展示登录邮箱（不可修改）
+            val tvEmail = TextView(this@HomeActivity).apply {
+                text = "登记邮箱：${currentUser.email}"
+                textSize = 13f
+                setTextColor(Color.GRAY)
+                setPadding(0, 0, 0, 30)
+            }
+
+            // 2. 修订雅号（account）
+            val etNickname = EditText(this@HomeActivity).apply {
+                hint = "请修订雅号"
+                setText(currentUser.account)
+                textSize = 18f
+                setSingleLine(true)
+                // 设置粗体衬线体，增加仪式感
+                typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            }
+
+            // 3. 展示用户自己的邀请码（invitationCode）
+            val inviteSection = LinearLayout(this@HomeActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, 50, 0, 20)
+            }
+
+            val tvCodeLabel = TextView(this@HomeActivity).apply { text = "我的引荐码：" }
+            val tvCodeValue = TextView(this@HomeActivity).apply {
+                text = currentUser.invitationCode
+                textSize = 20f
+                setTextColor("#A52A2A".toColorInt()) // 深红色
+                setPadding(20, 0, 20, 0)
+                typeface = Typeface.MONOSPACE
+            }
+
+            val btnCopy = com.google.android.material.button.MaterialButton(this@HomeActivity).apply {
+                text = "誊抄"
+                textSize = 10f
+                setOnClickListener {
+                    val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("InviteCode", currentUser.invitationCode)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(this@HomeActivity, "引荐码已誊抄，可发给好友", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            inviteSection.addView(tvCodeLabel)
+            inviteSection.addView(tvCodeValue)
+            inviteSection.addView(btnCopy)
+
+            // 组合 UI
+            container.addView(tvEmail)
+            container.addView(TextView(this@HomeActivity).apply { text = "当前雅号：" })
+            container.addView(etNickname)
+            container.addView(inviteSection)
+
+            // 加入 VIP 激励说明
+            val vipDesc = TextView(this@HomeActivity).apply {
+                text = "💡 雅号传千家：将引荐码转送给十位好友登记，即可晋升『雅鉴VIP』，开启置换分享权限。"
+                textSize = 11f
+                setTextColor(android.graphics.Color.DKGRAY)
+            }
+            container.addView(vipDesc)
+
+            // 弹出对话框
+            MaterialAlertDialogBuilder(this@HomeActivity)
+                .setTitle("— 岁时名帖 —")
+                .setView(container)
+                .setPositiveButton("存入") { _, _ ->
+                    val newName = etNickname.text.toString().trim()
+                    if (newName.isNotEmpty()) {
+                        lifecycleScope.launch {
+                            currentUser.account = newName
+                            db.userDao().updateUser(currentUser)
+                            // 同步更新本地缓存，确保清单生成姓名一致
+                            getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {putString("saved_name", newName) }
+                            Toast.makeText(this@HomeActivity, "名帖已更新", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
     }
 
     override fun onResume() { super.onResume(); if (isMusicPlaying) mediaPlayer?.start() }
