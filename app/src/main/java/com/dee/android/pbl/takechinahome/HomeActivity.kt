@@ -448,8 +448,37 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun refreshGifts(swipe: SwipeRefreshLayout) {
-        loadGiftsFromServer()
-        swipe.isRefreshing = false
+        // 弹出确认对话框，防止误操作清空已保存的订单
+        MaterialAlertDialogBuilder(this)
+            .setTitle("重新洗炼")
+            .setMessage("同步云端将重置当前画卷的所有定制信息，是否继续？")
+            .setPositiveButton("确定") { _, _ ->
+                // 用户确认，开始同步
+                lifecycleScope.launch {
+                    try {
+                        val response = RetrofitClient.instance.getGifts()
+                        if (response.isNotEmpty()) {
+                            myGifts.clear()
+                            myGifts.addAll(response)
+                            adapter.notifyDataSetChanged()
+                            cacheGiftsLocally() // 同步后立即更新本地缓存
+                            updateEmptyView()
+                            Toast.makeText(this@HomeActivity, "画卷已焕然一新", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Log", "同步失败: ${e.message}")
+                        Toast.makeText(this@HomeActivity, "云端暂不可达，请稍后再试", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        swipe.isRefreshing = false // 停止旋转动画
+                    }
+                }
+            }
+            .setNegativeButton("取消") { _, _ ->
+                // 用户取消，直接停止刷新动画
+                swipe.isRefreshing = false
+            }
+            .setCancelable(false) // 强制用户做出选择
+            .show()
     }
 
     private fun updateEmptyView() {
