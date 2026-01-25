@@ -170,132 +170,152 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // --- 3. 生成订购清单图逻辑 ---
-    private fun generateOrderImage() {
+    // --- 3. 生成订购清单图逻辑 ---
+    // --- 3. 生成订购清单图逻辑 ---
+    private fun generateOrderImage(shouldSave: Boolean = false) {
         val activeGifts = myGifts.filter { it.isSaved }
         if (activeGifts.isEmpty()) {
             Toast.makeText(this, "画卷空空，请先「确入画卷」添加礼品", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val userPrefs = getSharedPreferences("UserPrefs", MODE_PRIVATE)
-        val name = userPrefs.getString("saved_name", "匿名官") ?: "匿名官"
-        val contact = userPrefs.getString("saved_contact", "未留联系方式") ?: "未留联系方式"
-        val time = userPrefs.getString("saved_comm_time", "随时可叙") ?: "随时可叙"
+        // 使用协程统一读取数据库和配置，确保名帖信息一致
+        lifecycleScope.launch {
+            val db = AppDatabase.getDatabase(this@HomeActivity)
+            val currentUser = db.userDao().getCurrentUser()
 
-        val width = 1080
-        var totalHeight = 1100
-        val paint = Paint().apply {
-            isAntiAlias = true
-            typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
-            setShadowLayer(1.5f, 1f, 1f, "#44000000".toColorInt())
-        }
+            val userPrefs = getSharedPreferences("UserPrefs", MODE_PRIVATE)
 
-        // 计算总高度
-        val itemHeights = mutableListOf<Float>()
-        activeGifts.forEach { gift ->
-            paint.textSize = 40f
-            val reqLines = splitTextIntoLines("刻花/底款：${gift.customText}", DEFAULT_MAX_WIDTH, paint).size
-            val noteLines = splitTextIntoLines("特别叮嘱：${gift.customNotes}", DEFAULT_MAX_WIDTH, paint).size
-            val h = 420f + (reqLines * 60f) + (noteLines * 60f)
-            itemHeights.add(h)
-            totalHeight += h.toInt()
-        }
+            // 核心修复：雅号优先从数据库读取，联系方式从 Prefs 读取
+            val name = currentUser?.account ?: userPrefs.getString("saved_name", "匿名官") ?: "匿名官"
+            val contact = userPrefs.getString("saved_contact", "未留联系方式") ?: "未留联系方式"
+            val time = userPrefs.getString("saved_comm_time", "随时可叙") ?: "随时可叙"
 
-        try {
-            val bitmap = createBitmap(width, totalHeight)
-            val canvas = Canvas(bitmap)
-            canvas.drawColor("#F4EFE2".toColorInt())
-
-            // 绘制纸张纹理
-            val random = Random()
-            val texturePaint = Paint().apply {
+            val width = 1080
+            var totalHeight = 1100
+            val paint = Paint().apply {
                 isAntiAlias = true
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-            }
-            for (i in 0..300) {
-                texturePaint.strokeWidth = random.nextFloat() * 2f + 1f
-                val alpha = random.nextInt(40) + 20
-                texturePaint.color = Color.argb(alpha, 120, 100, 80)
-                val startX = random.nextFloat() * width
-                val startY = random.nextFloat() * totalHeight
-                val length = random.nextFloat() * 60f + 20f
-                val angle = random.nextFloat() * Math.PI * 2
-                canvas.drawLine(startX, startY, (startX + cos(angle) * length).toFloat(), (startY + sin(angle) * length).toFloat(), texturePaint)
+                typeface = Typeface.create(Typeface.SERIF, Typeface.NORMAL)
+                setShadowLayer(1.5f, 1f, 1f, "#44000000".toColorInt())
             }
 
-            // 标题
-            paint.color = Color.BLACK
-            paint.textSize = 85f
-            paint.textAlign = Paint.Align.CENTER
-            paint.isFakeBoldText = true
-            canvas.drawText("岁时礼序 · 订购清单", width / 2f, 180f, paint)
+            // 计算总高度
+            val itemHeights = mutableListOf<Float>()
+            activeGifts.forEach { gift ->
+                paint.textSize = 40f
+                val reqLines = splitTextIntoLines("刻花/底款：${gift.customText}", DEFAULT_MAX_WIDTH, paint).size
+                val noteLines = splitTextIntoLines("特别叮嘱：${gift.customNotes}", DEFAULT_MAX_WIDTH, paint).size
+                val h = 420f + (reqLines * 60f) + (noteLines * 60f)
+                itemHeights.add(h)
+                totalHeight += h.toInt()
+            }
 
-            // 名帖信息
-            paint.textAlign = Paint.Align.LEFT
-            paint.isFakeBoldText = false
-            paint.textSize = 45f
-            paint.color = "#B22222".toColorInt()
-            canvas.drawText("【名帖 · 登记意向】", 100f, 300f, paint)
+            try {
+                val bitmap = createBitmap(width, totalHeight)
+                val canvas = Canvas(bitmap)
+                canvas.drawColor("#F4EFE2".toColorInt()) // 宣纸底色
 
-            paint.color = Color.BLACK
-            paint.textSize = 38f
-            canvas.drawText("联系人：$name", 130f, 370f, paint)
-            canvas.drawText("联系方式：$contact", 130f, 430f, paint)
-            canvas.drawText("便利时间：$time", 130f, 490f, paint)
+                // 绘制纸张纹理
+                val random = Random()
+                val texturePaint = Paint().apply {
+                    isAntiAlias = true
+                    style = Paint.Style.STROKE
+                    strokeCap = Paint.Cap.ROUND
+                }
+                for (i in 0..300) {
+                    texturePaint.strokeWidth = random.nextFloat() * 2f + 1f
+                    val alpha = random.nextInt(40) + 20
+                    texturePaint.color = Color.argb(alpha, 120, 100, 80)
+                    val startX = random.nextFloat() * width
+                    val startY = random.nextFloat() * totalHeight
+                    val length = random.nextFloat() * 60f + 20f
+                    val angle = random.nextFloat() * Math.PI * 2
+                    canvas.drawLine(startX, startY, (startX + cos(angle) * length).toFloat(), (startY + sin(angle) * length).toFloat(), texturePaint)
+                }
 
-            paint.color = "#8B4513".toColorInt()
-            canvas.drawLine(100f, 540f, width - 100f, 540f, paint)
-
-            // 循环绘制每个礼品
-            var currentY = 650f
-            activeGifts.forEachIndexed { index, gift ->
-                paint.textSize = 50f
+                // 标题
+                paint.color = Color.BLACK
+                paint.textSize = 85f
+                paint.textAlign = Paint.Align.CENTER
                 paint.isFakeBoldText = true
-                paint.color = Color.BLACK
-                canvas.drawText("${index + 1}. ${gift.name}", 100f, currentY, paint)
+                canvas.drawText("岁时礼序 · 订购清单", width / 2f, 180f, paint)
 
+                // 名帖信息
+                paint.textAlign = Paint.Align.LEFT
                 paint.isFakeBoldText = false
-                paint.textSize = 38f
-                paint.color = "#8B4513".toColorInt()
-                canvas.drawText("数量：${gift.customQuantity}   交货期：${gift.customDeliveryDate}", 130f, currentY + 80f, paint)
+                paint.textSize = 45f
+                paint.color = "#B22222".toColorInt()
+                paint.color = "#B22222".toColorInt()
+                canvas.drawText("【投帖 · 联络官】 (下单意向)", 100f, 300f, paint) // 增加现代文注释
 
                 paint.color = Color.BLACK
-                var textY = currentY + 150f
-                splitTextIntoLines("刻花/底款：${gift.customText.ifEmpty { "随缘" }}", DEFAULT_MAX_WIDTH, paint).forEach {
-                    canvas.drawText(it, 130f, textY, paint); textY += 60f
-                }
-                splitTextIntoLines("特别叮嘱：${gift.customNotes.ifEmpty { "无" }}", DEFAULT_MAX_WIDTH, paint).forEach {
-                    canvas.drawText(it, 130f, textY, paint); textY += 60f
+                paint.textSize = 38f
+                canvas.drawText("联络人 (可不同于雅号)：$name", 130f, 370f, paint) // 进一步强调
+
+                paint.color = Color.BLACK
+                paint.textSize = 38f
+                canvas.drawText("联系人：$name", 130f, 370f, paint)
+                canvas.drawText("联系方式：$contact", 130f, 430f, paint)
+                canvas.drawText("便利时间：$time", 130f, 490f, paint)
+
+                paint.color = "#8B4513".toColorInt()
+                canvas.drawLine(100f, 540f, width - 100f, 540f, paint)
+
+                // 循环绘制每个礼品
+                var currentY = 650f
+                activeGifts.forEachIndexed { index, gift ->
+                    paint.textSize = 50f
+                    paint.isFakeBoldText = true
+                    paint.color = Color.BLACK
+                    canvas.drawText("${index + 1}. ${gift.name}", 100f, currentY, paint)
+
+                    paint.isFakeBoldText = false
+                    paint.textSize = 38f
+                    paint.color = "#8B4513".toColorInt()
+                    canvas.drawText("数量：${gift.customQuantity}   交货期：${gift.customDeliveryDate}", 130f, currentY + 80f, paint)
+
+                    paint.color = Color.BLACK
+                    var textY = currentY + 150f
+                    splitTextIntoLines("刻花/底款：${gift.customText.ifEmpty { "随缘" }}", DEFAULT_MAX_WIDTH, paint).forEach {
+                        canvas.drawText(it, 130f, textY, paint); textY += 60f
+                    }
+                    splitTextIntoLines("特别叮嘱：${gift.customNotes.ifEmpty { "无" }}", DEFAULT_MAX_WIDTH, paint).forEach {
+                        canvas.drawText(it, 130f, textY, paint); textY += 60f
+                    }
+
+                    currentY += itemHeights[index]
+                    paint.color = "#338B4513".toColorInt()
+                    canvas.drawLine(100f, currentY - 50f, width - 100f, currentY - 50f, paint)
                 }
 
-                currentY += itemHeights[index]
-                paint.color = "#338B4513".toColorInt()
-                canvas.drawLine(100f, currentY - 50f, width - 100f, currentY - 50f, paint)
+                // 底部日期
+                paint.textAlign = Paint.Align.RIGHT
+                paint.color = Color.BLACK
+                val today = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date())
+                canvas.drawText("生成日期：$today", width - 100f, totalHeight - 120f, paint)
+
+                // 印章
+                val sealX = width - 480f
+                val sealY = totalHeight - 360f
+                paint.style = Paint.Style.FILL
+                paint.color = "#B22222".toColorInt()
+                canvas.drawRect(sealX, sealY, sealX + 150f, sealY + 150f, paint)
+                paint.color = Color.WHITE
+                paint.textAlign = Paint.Align.CENTER
+                paint.textSize = 45f
+                canvas.drawText("岁时", sealX + 75f, sealY + 65f, paint)
+                canvas.drawText("礼序", sealX + 75f, sealY + 125f, paint)
+
+                // 最后的逻辑处理：是预览还是直接保存
+                if (shouldSave) {
+                    saveBitmapToGallery(bitmap)
+                } else {
+                    showImagePreviewDialog(bitmap)
+                }
+
+            } catch (e: Exception) {
+                Log.e("Log", "绘制异常: ${e.message}")
             }
-
-            // 底部日期
-            paint.textAlign = Paint.Align.RIGHT
-            paint.color = Color.BLACK
-            val today = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date())
-            canvas.drawText("生成日期：$today", width - 100f, totalHeight - 120f, paint)
-
-            // 印章
-            val sealX = width - 480f
-            val sealY = totalHeight - 360f
-            paint.style = Paint.Style.FILL
-            paint.color = "#B22222".toColorInt()
-            canvas.drawRect(sealX, sealY, sealX + 150f, sealY + 150f, paint)
-            paint.color = Color.WHITE
-            paint.textAlign = Paint.Align.CENTER
-            paint.textSize = 45f
-            canvas.drawText("岁时", sealX + 75f, sealY + 65f, paint)
-            canvas.drawText("礼序", sealX + 75f, sealY + 125f, paint)
-
-            saveBitmapToGallery(bitmap)
-
-        } catch (e: Exception) {
-            Log.e("Log", "绘制异常: ${e.message}")
         }
     }
 
@@ -335,7 +355,11 @@ class HomeActivity : AppCompatActivity() {
         etContact.setText(prefs.getString("saved_contact", ""))
         etCommTime.setText(prefs.getString("saved_comm_time", ""))
 
-        val dialog = MaterialAlertDialogBuilder(this).setView(dialogView).create()
+        // 修改弹窗标题
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("— 【投帖 · 联络官】  —") // 明确说明是下单联系人
+            .setView(dialogView)
+            .create()
         btnSubmit.setOnClickListener {
             prefs.edit {
                 putString("saved_name", etName.text.toString())
@@ -375,7 +399,8 @@ class HomeActivity : AppCompatActivity() {
                     bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
                 }
             }
-            showImagePreviewDialog(bitmap)
+            // 只需要吐司提示即可，不要再调用 showImagePreviewDialog 了
+            Toast.makeText(this@HomeActivity, "画卷已存入相册", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -389,7 +414,15 @@ class HomeActivity : AppCompatActivity() {
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         scrollView.addView(imageView)
-        MaterialAlertDialogBuilder(this).setTitle("清单预览").setView(scrollView).setPositiveButton("确认", null).show()
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("清单预览")
+            .setView(scrollView)
+            .setPositiveButton("存入相册") { _, _ ->
+                saveBitmapToGallery(bitmap) // 在这里调用真正的保存逻辑
+            }
+            .setNegativeButton("返回", null)
+            .show()
     }
 
     // --- 5. 数据加载与缓存 ---
@@ -587,7 +620,7 @@ class HomeActivity : AppCompatActivity() {
 
             // 组合 UI
             container.addView(tvEmail)
-            container.addView(TextView(this@HomeActivity).apply { text = "当前雅号：" })
+            container.addView(TextView(this@HomeActivity).apply { text = "当前雅号 (App内称呼)：" })
             container.addView(etNickname)
             container.addView(inviteSection)
 
@@ -601,7 +634,7 @@ class HomeActivity : AppCompatActivity() {
 
             // 弹出对话框
             MaterialAlertDialogBuilder(this@HomeActivity)
-                .setTitle("— 岁时名帖 —")
+                .setTitle("— 【名帖 · 账户主】  —") // 明确说明是个人中心
                 .setView(container)
                 .setPositiveButton("存入") { _, _ ->
                     val newName = etNickname.text.toString().trim()
