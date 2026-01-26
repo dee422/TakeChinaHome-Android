@@ -57,25 +57,32 @@ class HomeActivity : AppCompatActivity() {
     private val gson = Gson()
     private var tvEmptyHint: TextView? = null
 
+    private var currentUser: User? = null // 在类顶部定义
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Force clear old, broken image cache once
+        // 1. 清理旧版缓存逻辑（保留你之前的代码）
         val fixPrefs = getSharedPreferences("DataCache", MODE_PRIVATE)
         if (fixPrefs.getBoolean("image_fix_v3", true)) {
-            fixPrefs.edit {
-                remove("cached_gifts")
-                putBoolean("image_fix_v3", false)
-            }
+            val editor = fixPrefs.edit()
+            editor.remove("cached_gifts")
+            editor.putBoolean("image_fix_v3", false)
+            editor.apply()
         }
 
+        // 2. 核心逻辑：检查用户状态
         lifecycleScope.launch {
             val db = AppDatabase.getDatabase(this@HomeActivity)
-            val currentUser = db.userDao().getCurrentUser()
+            currentUser = db.userDao().getCurrentUser()
+
             if (currentUser == null) {
+                // 如果本地数据库为空，说明没注册或已退出，去注册页
                 startActivity(Intent(this@HomeActivity, RegisterActivity::class.java))
                 finish()
             } else {
+                // 如果本地有用户，加载主界面
+                setContentView(R.layout.activity_home) // 确保在初始化UI前设置布局
                 initHomeUI()
             }
         }
@@ -176,24 +183,29 @@ class HomeActivity : AppCompatActivity() {
     // --- 3. 生成订购清单图逻辑 ---
     // --- 3. 生成订购清单图逻辑 ---
     // --- 3. 生成订购清单图逻辑 ---
-    private fun generateOrderImage(shouldSave: Boolean = false) {
+    private fun generateOrderImage(
+        shouldSave: Boolean = false,
+        inputName: String? = null,
+        inputContact: String? = null,
+        inputTime: String? = null
+    ) {
         val activeGifts = myGifts.filter { it.isSaved }
         if (activeGifts.isEmpty()) {
             Toast.makeText(this, "画卷空空，请先「确入画卷」添加礼品", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 使用协程统一读取数据库和配置，确保名帖信息一致
         lifecycleScope.launch {
-            val db = AppDatabase.getDatabase(this@HomeActivity)
-            val currentUser = db.userDao().getCurrentUser()
-
+            // 这里不需要再声明 val currentUser，直接用全局的
             val userPrefs = getSharedPreferences("UserPrefs", MODE_PRIVATE)
 
-            // 核心修复：雅号优先从数据库读取，联系方式从 Prefs 读取
-            val name = currentUser?.account ?: userPrefs.getString("saved_name", "匿名官") ?: "匿名官"
-            val contact = userPrefs.getString("saved_contact", "未留联系方式") ?: "未留联系方式"
-            val time = userPrefs.getString("saved_comm_time", "随时可叙") ?: "随时可叙"
+            // --- 核心修复：优先使用传入的参数，如果没有则用缓存 ---
+            val accountOwner = currentUser?.account ?: "匿名官"
+
+            // 如果传入了 inputName 就用它，否则用缓存或雅号
+            val finalContactName = inputName ?: userPrefs.getString("saved_name", accountOwner) ?: accountOwner
+            val contact = inputContact ?: userPrefs.getString("saved_contact", "未留联系方式") ?: "未留联系方式"
+            val time = inputTime ?: userPrefs.getString("saved_comm_time", "随时可叙") ?: "随时可叙"
 
             val width = 1080
             var totalHeight = 1100
@@ -244,52 +256,75 @@ class HomeActivity : AppCompatActivity() {
                 paint.isFakeBoldText = true
                 canvas.drawText("岁时礼序 · 订购清单", width / 2f, 180f, paint)
 
-                // 名帖信息
+                // --- 1. 标题 ---
                 paint.textAlign = Paint.Align.LEFT
-                paint.isFakeBoldText = false
                 paint.textSize = 45f
                 paint.color = "#B22222".toColorInt()
-                paint.color = "#B22222".toColorInt()
-                canvas.drawText("【投帖 · 联络官】 (下单意向)", 100f, 300f, paint) // 增加现代文注释
+                canvas.drawText("【 投帖 · 联络官 】", 100f, 300f, paint)
 
+                // --- 2. 账户主 (斜体) ---
+                paint.color = Color.GRAY
+                paint.textSize = 35f
+                paint.textSkewX = -0.25f
+                canvas.drawText("账户主 (雅号)：$accountOwner", 130f, 360f, paint)
+
+                // --- 3. 联络人 (加粗，来自登记名或输入) ---
                 paint.color = Color.BLACK
+                paint.textSize = 40f
+                paint.textSkewX = 0f
+                paint.isFakeBoldText = true
+                canvas.drawText("联络人：$finalContactName", 130f, 415f, paint)
+
+                // --- 4. 其他信息 ---
+                paint.isFakeBoldText = false
                 paint.textSize = 38f
-                canvas.drawText("联络人 (可不同于雅号)：$name", 130f, 370f, paint) // 进一步强调
+                canvas.drawText("联系方式：$contact", 130f, 475f, paint)
+                canvas.drawText("便利时间：$time", 130f, 535f, paint)
 
-                paint.color = Color.BLACK
-                paint.textSize = 38f
-                canvas.drawText("联系人：$name", 130f, 370f, paint)
-                canvas.drawText("联系方式：$contact", 130f, 430f, paint)
-                canvas.drawText("便利时间：$time", 130f, 490f, paint)
+                // --- 5. 关键修改：将分隔线往下移动 ---
+                // 原本可能在 500f 左右，现在移到 620f，确保不遮挡文字
+                paint.color = "#D3D3D3".toColorInt() // 浅灰色线
+                paint.strokeWidth = 2f
+                canvas.drawLine(100f, 620f, width - 100f, 620f, paint)
 
-                paint.color = "#8B4513".toColorInt()
-                canvas.drawLine(100f, 540f, width - 100f, 540f, paint)
+                // --- 6. 统一间距起始位置 ---
+                var currentY = 720f
 
-                // 循环绘制每个礼品
-                var currentY = 650f
                 activeGifts.forEachIndexed { index, gift ->
-                    paint.textSize = 50f
+                    // A. 绘制品名序号与名称 (例如: 壹. 官窑八角杯)
+                    paint.textSize = 52f // 稍微加大一点
                     paint.isFakeBoldText = true
                     paint.color = Color.BLACK
-                    canvas.drawText("${index + 1}. ${gift.name}", 100f, currentY, paint)
 
+                    // 使用中文数字或加粗的阿拉伯数字增加仪式感
+                    val itemTitle = "第 ${index + 1} 选：${gift.name}"
+                    canvas.drawText(itemTitle, 100f, currentY, paint)
+
+                    // B. 绘制详情 (缩进一点，让编号更突出)
                     paint.isFakeBoldText = false
                     paint.textSize = 38f
                     paint.color = "#8B4513".toColorInt()
-                    canvas.drawText("数量：${gift.customQuantity}   交货期：${gift.customDeliveryDate}", 130f, currentY + 80f, paint)
+                    canvas.drawText("【 数量：${gift.customQuantity} 】   交货期：${gift.customDeliveryDate}", 130f, currentY + 85f, paint)
 
                     paint.color = Color.BLACK
-                    var textY = currentY + 150f
+                    var textY = currentY + 160f
+
+                    // 绘制刻花和叮嘱 (保持原本逻辑)
                     splitTextIntoLines("刻花/底款：${gift.customText.ifEmpty { "随缘" }}", DEFAULT_MAX_WIDTH, paint).forEach {
-                        canvas.drawText(it, 130f, textY, paint); textY += 60f
+                        canvas.drawText(it, 130f, textY, paint); textY += 65f
                     }
                     splitTextIntoLines("特别叮嘱：${gift.customNotes.ifEmpty { "无" }}", DEFAULT_MAX_WIDTH, paint).forEach {
-                        canvas.drawText(it, 130f, textY, paint); textY += 60f
+                        canvas.drawText(it, 130f, textY, paint); textY += 65f
                     }
 
-                    currentY += itemHeights[index]
+                    // C. 绘制该条目的装饰短线 (让每一项看起来更独立)
+                    val lineY = textY + 30f
                     paint.color = "#338B4513".toColorInt()
-                    canvas.drawLine(100f, currentY - 50f, width - 100f, currentY - 50f, paint)
+                    paint.strokeWidth = 2f
+                    canvas.drawLine(100f, lineY, width - 100f, lineY, paint)
+
+                    // D. 更新下一个条目的起始 Y
+                    currentY = lineY + 90f
                 }
 
                 // 底部日期
@@ -299,11 +334,12 @@ class HomeActivity : AppCompatActivity() {
                 canvas.drawText("生成日期：$today", width - 100f, totalHeight - 120f, paint)
 
                 // 印章
-                val sealX = width - 480f
-                val sealY = totalHeight - 360f
+                val sealX = width - 400f
+                val sealY = totalHeight - 450f // 根据总高度动态调整 Y 轴
+
                 paint.style = Paint.Style.FILL
                 paint.color = "#B22222".toColorInt()
-                canvas.drawRect(sealX, sealY, sealX + 150f, sealY + 150f, paint)
+                canvas.drawRect(sealX, sealY, sealX + 160f, sealY + 160f, paint)
                 paint.color = Color.WHITE
                 paint.textAlign = Paint.Align.CENTER
                 paint.textSize = 45f
@@ -350,6 +386,18 @@ class HomeActivity : AppCompatActivity() {
     private fun showWishFormDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_wish_form, null)
         val etName = dialogView.findViewById<EditText>(R.id.etName)
+
+        // --- 修改部分：自动填充登记时的雅号 ---
+        val accountOwner = currentUser?.account ?: ""
+        if (accountOwner.isNotEmpty()) {
+            etName.setText(accountOwner)
+            // 可选：将光标移至文字末尾，方便用户修改
+            etName.setSelection(accountOwner.length)
+        } else {
+            // 如果没有获取到账号（例如本地缓存异常），则显示提示词
+            etName.hint = "请输入联络人姓名"
+        }
+
         val etContact = dialogView.findViewById<EditText>(R.id.etContact)
         val etCommTime = dialogView.findViewById<EditText>(R.id.etCommTime)
         val btnSubmit = dialogView.findViewById<Button>(R.id.btnSubmitWish)
@@ -365,11 +413,24 @@ class HomeActivity : AppCompatActivity() {
             .setView(dialogView)
             .create()
         btnSubmit.setOnClickListener {
-            prefs.edit {
-                putString("saved_name", etName.text.toString())
-                putString("saved_contact", etContact.text.toString())
-                putString("saved_comm_time", etCommTime.text.toString())
+            val nameStr = etName.text.toString()
+            val contactStr = etContact.text.toString()
+            val timeStr = etCommTime.text.toString()
+
+            if (nameStr.isBlank() || contactStr.isBlank()) {
+                Toast.makeText(this, "请补全联络信息", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
             }
+
+            prefs.edit {
+                putString("saved_name", nameStr)
+                putString("saved_contact", contactStr)
+                putString("saved_comm_time", timeStr)
+            }
+
+            // --- 这里是关键：传参数给生成函数 ---
+            generateOrderImage(false, nameStr, contactStr, timeStr)
+
             Toast.makeText(this, "名帖已登记", Toast.LENGTH_SHORT).show()
             dialog.dismiss()
         }
@@ -516,10 +577,17 @@ class HomeActivity : AppCompatActivity() {
         getSharedPreferences("UserPrefs", MODE_PRIVATE).edit { putBoolean("music_enabled", isMusicPlaying) }
     }
 
-    override fun onCreateOptionsMenu(menu: Menu?) = menuInflater.inflate(R.menu.home_menu, menu).let { true }
+    // 1. 创建菜单
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.home_menu, menu)
+        return true
+    }
+
     override fun onPrepareOptionsMenu(menu: Menu?) = super.onPrepareOptionsMenu(menu).also {
         menu?.findItem(R.id.action_toggle_music)?.title = if (isMusicPlaying) "音律：奏鸣" else "音律：暂歇"
     }
+
+    // 2. 处理菜单点击事件
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             // 1. 雅鉴置换跳转
@@ -528,13 +596,10 @@ class HomeActivity : AppCompatActivity() {
                     try {
                         val db = AppDatabase.getDatabase(this@HomeActivity)
                         val user = db.userDao().getCurrentUser()
-
-                        // 测试环境设为 >= 0 确保能进入
                         if (user != null && user.referralCount >= 0) {
                             val intent = Intent(this@HomeActivity, ExchangeActivity::class.java)
                             startActivity(intent)
                         } else {
-                            // 如果 user 为空，引导其去注册或提示
                             Toast.makeText(this@HomeActivity, "请先完善名帖信息", Toast.LENGTH_SHORT).show()
                         }
                     } catch (e: Exception) {
@@ -551,12 +616,49 @@ class HomeActivity : AppCompatActivity() {
                 true
             }
 
-            // 3. 其他原有菜单
+            // 3. 退出登记 (新增部分)
+            R.id.action_logout -> {
+                showLogoutConfirmDialog()
+                true
+            }
+
+            // 4. 其他原有菜单
             R.id.action_profile -> { showProfileEditDialog(); true }
             R.id.action_generate_order -> { generateOrderImage(); true }
             R.id.action_help -> { showHelpDialog(); true }
 
             else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    // 3. 退出登录逻辑
+    private fun showLogoutConfirmDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("退出登记")
+            .setMessage("确定要注销名帖，重新开启画卷吗？")
+            .setPositiveButton("确定") { _, _ ->
+                performLogout()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun performLogout() {
+        lifecycleScope.launch {
+            // 清理本地数据库
+            val db = AppDatabase.getDatabase(this@HomeActivity)
+            db.userDao().clearUsers()
+
+            // 停止背景音乐（可选）
+            // stopBGM()
+
+            // 返回注册页并清空 Activity 栈
+            val intent = Intent(this@HomeActivity, RegisterActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+
+            Toast.makeText(this@HomeActivity, "已退出登记", Toast.LENGTH_SHORT).show()
         }
     }
 

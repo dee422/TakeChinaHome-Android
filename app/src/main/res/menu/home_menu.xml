@@ -25,4 +25,9 @@
         android:id="@+id/action_help"
         android:title="使用指南"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_logout"
+        android:title="注销名帖"
+        app:showAsAction="never" />
 </menu>

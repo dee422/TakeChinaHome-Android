@@ -8,33 +8,22 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 
 interface ApiService {
-
-    // === 模块一：原有礼品画卷功能 (保持路径一致) ===
-
-    /** 1. 从云端拉取最新的礼品画卷 */
-    @GET("api/v1/gifts.json")
+    // 去掉开头的 api/v1/，也不要加 /
+    @GET("gifts.json")
     suspend fun getGifts(): List<Gift>
 
-    /** 2. 告诉服务器：用户想移出这个 ID 的礼品 */
-    @DELETE("api/v1/gifts/{id}")
-    suspend fun deleteGift(@Path("id") id: String): Response<Unit> // 将 Int 改为 String
+    @DELETE("gifts/{id}")
+    suspend fun deleteGift(@Path("id") id: String): Response<Unit>
 
-
-    // === 模块二：用户系统 (新增) ===
-
-    /** 3. 用户注册：提交账户、邮箱、邀请码等 */
-    @POST("api/v1/user/register")
+    // 注意：你服务器上的注册文件路径是 register.php 还是 user/register？
+    // 如果是之前我们写的那个 PHP 文件，应该是：
+    @POST("register.php")
     suspend fun register(@Body user: User): ApiResponse
 
-
-    // === 模块三：藏品置换区 (新增) ===
-
-    /** 4. 提交自己的藏品到置换区 (待审核状态) */
-    @POST("api/v1/exchange/submit")
+    @POST("exchange/submit")
     suspend fun submitExchange(@Body gift: Gift): ApiResponse
 
-    /** 5. 拉取全网已审核通过的置换藏品 */
-    @GET("api/v1/exchange/market.json")
+    @GET("exchange/market.json")
     suspend fun getMarketGifts(): List<Gift>
 }
 
