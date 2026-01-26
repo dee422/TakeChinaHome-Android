@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>岁时礼序 · 雅鉴邀约</title>
+    <style>
+        body {
+            background-color: #FBF8EF; /* 宣纸色 */
+            color: #3E2723;
+            font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid #D7CCC8;
+            padding: 40px 20px;
+            background: #FFF;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        .container::before {
+            content: "";
+            position: absolute;
+            top: 5px; left: 5px; right: 5px; bottom: 5px;
+            border: 1px solid #E0E0E0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 24px;
+            letter-spacing: 4px;
+            border-bottom: 2px solid #8B4513;
+            display: inline-block;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+
+        .invitation-text {
+            line-height: 1.8;
+            font-size: 16px;
+            margin-bottom: 40px;
+            color: #5D4037;
+        }
+
+        .code-box {
+            background: #F4EFE2;
+            padding: 15px;
+            border: 1px dashed #B22222;
+            margin: 20px 0;
+        }
+
+        .code-value {
+            font-size: 28px;
+            color: #B22222;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        /* 按钮容器，让两个按钮更好看 */
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .download-btn {
+            background-color: #8B4513;
+            color: #FBF8EF;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .download-btn.secondary {
+            background-color: #5D4037;
+            font-size: 14px;
+        }
+
+        .download-btn:hover {
+            background-color: #3E2723;
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            margin-top: 50px;
+            font-size: 12px;
+            color: #9E9E9E;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>岁时礼序</h1>
+        <div class="invitation-text">
+            雅士见信如唔：<br>
+            幸得引荐，邀君共入画卷。<br>
+            品华夏雅物，序岁时之礼。
+        </div>
+
+        <div class="code-box">
+            <div style="font-size: 12px; margin-bottom: 5px;">专属引荐码</div>
+            <div class="code-value" id="inviteCodeDisplay">------</div>
+        </div>
+
+        <div class="btn-group">
+            <button class="download-btn" onclick="copyAndDownload('web')">
+                官方下载 (香港节点)
+            </button>
+            
+            <button class="download-btn secondary" onclick="copyAndDownload('github')">
+                备选下载 (GitHub 镜像)
+            </button>
+        </div>
+
+        <div class="footer">
+            提示：点击下载将自动誊抄引荐码<br>
+            开启 App 即可自动识别
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteCode = urlParams.get('from') || "NEWINV";
+        document.getElementById('inviteCodeDisplay').innerText = inviteCode;
+
+        function copyAndDownload(source) {
+            // 1. 执行复制逻辑
+            const tempInput = document.createElement("input");
+            tempInput.value = inviteCode;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            
+            alert("引荐码 " + inviteCode + " 已存入您的袖中。\n请在安装后开启App。");
+            
+            // 2. 根据 source 变量的值决定下载路径
+            let downloadUrl = "";
+            if (source === 'web') {
+                downloadUrl = "https://www.ichessgeek.com/api/v1/download/TakeChinaHome.apk";
+            } else {                
+                downloadUrl = "https://github.com/dee422/TakeChinaHome-Android/releases/download/v1.2/TakeChinaHome.apk";
+            }
+
+            // 3. 开始下载 
+            window.location.href = downloadUrl;
+        }
+    </script>
+</body>
+</html>

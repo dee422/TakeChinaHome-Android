@@ -1,5 +1,7 @@
 package com.dee.android.pbl.takechinahome
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -13,6 +15,8 @@ import kotlinx.coroutines.launch
 
 class RegisterActivity : AppCompatActivity() {
 
+    private lateinit var etInviteCode: EditText
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_register)
@@ -20,7 +24,7 @@ class RegisterActivity : AppCompatActivity() {
         val etAccount = findViewById<EditText>(R.id.etRegAccount)
         val etPassword = findViewById<EditText>(R.id.etRegPassword)
         val etEmail = findViewById<EditText>(R.id.etRegEmail)
-        val etInviteCode = findViewById<EditText>(R.id.etRegInviteCode) // 这是他人给的引荐码
+        etInviteCode = findViewById(R.id.etRegInviteCode) // 这是他人给的引荐码
         val btnSubmit = findViewById<MaterialButton>(R.id.btnRegisterSubmit)
         val tvApply = findViewById<TextView>(R.id.tvApplyInviteCode)
 
@@ -35,8 +39,8 @@ class RegisterActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // 在 RegisterActivity 的按钮点击事件内
-            val myNewInvitationCode = (1..6).map { "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".random() }.joinToString("")
+            // 系统为新用户生成属于他自己的唯一引荐码
+            val myNewInvitationCode = generateUniqueInviteCode()
 
             // 构造用户对象
             val user = User(
@@ -44,7 +48,8 @@ class RegisterActivity : AppCompatActivity() {
                 password = password,
                 email = email,
                 invitationCode = myNewInvitationCode, // 存入系统为他生成的码
-                isCurrentUser = true
+                isCurrentUser = true,
+                referralCount = 0 // 初始引荐人数为0
             )
 
             performRegister(user)
@@ -67,10 +72,44 @@ class RegisterActivity : AppCompatActivity() {
     }
 
     /**
-     * 生成随机 6 位邀请码（大写字母+数字）
+     * 方案 B 核心逻辑：自动识别剪贴板中的引荐码
+     */
+    override fun onResume() {
+        super.onResume()
+        checkClipboardForReferralCode()
+    }
+
+    private fun checkClipboardForReferralCode() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        // 检查剪贴板是否有内容
+        if (clipboard.hasPrimaryClip()) {
+            val clipData = clipboard.primaryClip
+            if (clipData != null && clipData.itemCount > 0) {
+                val text = clipData.getItemAt(0).text?.toString()?.trim() ?: ""
+
+                // 逻辑判断：如果当前输入框为空，且剪贴板内容符合引荐码格式（6位大写字母/数字）
+                if (etInviteCode.text.isEmpty() && isFormattedInviteCode(text)) {
+                    etInviteCode.setText(text)
+                    Toast.makeText(this, "已从您的袖中（剪贴板）自动识别引荐码", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * 验证是否为合法的引荐码格式
+     */
+    private fun isFormattedInviteCode(text: String): Boolean {
+        // 匹配 6 位大写字母或数字，且排除掉容易混淆的字符
+        val regex = Regex("^[A-Z2-9]{6}$")
+        return regex.matches(text)
+    }
+
+    /**
+     * 生成随机 6 位邀请码（剔除了易混淆的 0, O, 1, I）
      */
     private fun generateUniqueInviteCode(): String {
-        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // 剔除了易混淆的 0, O, 1, I
+        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         return (1..6)
             .map { chars.random() }
             .joinToString("")
@@ -87,7 +126,6 @@ class RegisterActivity : AppCompatActivity() {
             }
 
             try {
-                // 1. 尝试同步云端
                 val response = RetrofitClient.instance.register(user)
                 if (response.success) {
                     saveUserLocally(user)
@@ -100,28 +138,21 @@ class RegisterActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * 将用户信息写入 Room 并进入主页
-     */
     private suspend fun saveUserLocally(user: User) {
         try {
             val db = AppDatabase.getDatabase(this@RegisterActivity)
-
-            // 开启事务处理：先清理之前的用户，再插入新用户
             db.userDao().clearUsers()
             db.userDao().insertUser(user)
 
             Toast.makeText(this@RegisterActivity, "名帖登记成功，画卷开启", Toast.LENGTH_SHORT).show()
 
-            // 进入主界面
             val intent = Intent(this@RegisterActivity, HomeActivity::class.java)
-            // 清除 Activity 栈，防止返回键回到注册页
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
             finish()
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this@RegisterActivity, "本地存根失败，请检查数据库配置", Toast.LENGTH_LONG).show()
+            Toast.makeText(this@RegisterActivity, "本地存根失败", Toast.LENGTH_LONG).show()
         }
     }
 }

@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -62,7 +63,10 @@ class HomeActivity : AppCompatActivity() {
         // Force clear old, broken image cache once
         val fixPrefs = getSharedPreferences("DataCache", MODE_PRIVATE)
         if (fixPrefs.getBoolean("image_fix_v3", true)) {
-            fixPrefs.edit().remove("cached_gifts").putBoolean("image_fix_v3", false).apply()
+            fixPrefs.edit {
+                remove("cached_gifts")
+                putBoolean("image_fix_v3", false)
+            }
         }
 
         lifecycleScope.launch {
@@ -594,6 +598,22 @@ class HomeActivity : AppCompatActivity() {
                 setPadding(0, 50, 0, 20)
             }
 
+            // ... 在 inviteSection 的按钮逻辑中 ...
+            val btnQRCode = com.google.android.material.button.MaterialButton(this@HomeActivity).apply {
+                text = "出示邀约"
+                textSize = 10f
+                setOnClickListener {
+                    // 建议：将 URL 基础路径定义在 companion object 中
+                    val baseUrl = "https://www.ichessgeek.com/api/v1/download.html"
+                    val inviteUrl = "$baseUrl?from=${currentUser.invitationCode}"
+
+                    // 适当增大尺寸（如 600px），确保清晰度
+                    val qrBitmap = generateQRCode(inviteUrl, 600)
+                    showQRCodeDialog(qrBitmap, currentUser.invitationCode)
+                }
+            }
+            inviteSection.addView(btnQRCode) // 紧跟在 btnCopy 后面
+
             val tvCodeLabel = TextView(this@HomeActivity).apply { text = "我的引荐码：" }
             val tvCodeValue = TextView(this@HomeActivity).apply {
                 text = currentUser.invitationCode
@@ -651,6 +671,85 @@ class HomeActivity : AppCompatActivity() {
                 .setNegativeButton("取消", null)
                 .show()
         }
+    }
+
+    private fun generateQRCode(text: String, size: Int = 500): Bitmap {
+        val bitMatrix = com.google.zxing.qrcode.QRCodeWriter().encode(
+            text, com.google.zxing.BarcodeFormat.QR_CODE, size, size
+        )
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
+            }
+        }
+        return bitmap
+    }
+
+    private fun showQRCodeDialog(qrBitmap: Bitmap, code: String) {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(80, 80, 80, 80) // 增加内边距
+            setBackgroundColor("#FBF8EF".toColorInt())
+        }
+
+        // 标题：雅致的衬线体
+        val tvTitle = TextView(this).apply {
+            text = "— 岁时邀约 —"
+            textSize = 20f
+            setTextColor("#3E2723".toColorInt())
+            setPadding(0, 0, 0, 50)
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+        }
+
+        // 二维码容器：增加一个白色背板，方便识别
+        val qrFrame = FrameLayout(this).apply {
+            setPadding(20, 20, 20, 20)
+            setBackgroundColor(Color.WHITE) // 二维码背后的白色保护区
+        }
+
+        val ivQR = ImageView(this).apply {
+            setImageBitmap(qrBitmap)
+            layoutParams = FrameLayout.LayoutParams(600, 600)
+        }
+        qrFrame.addView(ivQR)
+
+        val tvHint = TextView(this).apply {
+            text = "扫码共赏，引荐码：$code"
+            textSize = 14f
+            setTextColor("#8B4513".toColorInt())
+            setPadding(0, 40, 0, 0)
+        }
+
+        container.addView(tvTitle)
+        container.addView(qrFrame)
+        container.addView(tvHint)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("生成邀约图帖") // 增加标题提示
+            .setView(container)
+            .setPositiveButton("存入相册") { _, _ ->
+                // 核心逻辑：将 container 转化为图片
+                val imageBitmap = viewToBitmap(container)
+                saveBitmapToGallery(imageBitmap) // 调用你之前写好的保存到 MediaStore 的方法
+            }
+            .setNegativeButton("隐去", null)
+            .show()
+    }
+
+    private fun viewToBitmap(view: View): Bitmap {
+        // 手动测量和布局，确保即使 view 还没显示在屏幕上也能生成图片
+        view.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+
+        val bitmap = Bitmap.createBitmap(view.measuredWidth, view.measuredHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        view.draw(canvas)
+        return bitmap
     }
 
     override fun onResume() { super.onResume(); if (isMusicPlaying) mediaPlayer?.start() }
