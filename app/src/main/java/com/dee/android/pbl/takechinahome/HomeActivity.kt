@@ -24,6 +24,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
 import androidx.core.graphics.createBitmap
@@ -36,7 +37,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,35 +64,54 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 统一在这里设置一次布局
+        setContentView(R.layout.activity_home)
 
-        // 1. 清理旧版缓存逻辑（保留你之前的代码）
-        val fixPrefs = getSharedPreferences("DataCache", MODE_PRIVATE)
-        if (fixPrefs.getBoolean("image_fix_v3", true)) {
-            val editor = fixPrefs.edit()
-            editor.remove("cached_gifts")
-            editor.putBoolean("image_fix_v3", false)
-            editor.apply()
-        }
+        // 调用统一初始化方法
+        initHomeUI()
 
-        // 2. 核心逻辑：检查用户状态
+        // 数据库读取逻辑：更新欢迎语和头像
         lifecycleScope.launch {
             val db = AppDatabase.getDatabase(this@HomeActivity)
-            currentUser = db.userDao().getCurrentUser()
+            currentUser = withContext(Dispatchers.IO) {
+                db.userDao().getCurrentUser()
+            }
 
-            if (currentUser == null) {
-                // 如果本地数据库为空，说明没注册或已退出，去注册页
-                startActivity(Intent(this@HomeActivity, RegisterActivity::class.java))
-                finish()
-            } else {
-                // 如果本地有用户，加载主界面
-                setContentView(R.layout.activity_home) // 确保在初始化UI前设置布局
-                initHomeUI()
+            currentUser?.let {
+                val nickname = it.account
+                findViewById<TextView>(R.id.welcomeText).text = "尊驾 $nickname，别来无恙"
+                findViewById<TextView>(R.id.userAvatarText).text = if (nickname.isNotEmpty()) nickname.take(1) else "佚"
+
+                // 数据准备好后，如果是第一次进入，执行同步
+                if (myGifts.isEmpty()) {
+                    loadGiftsFromServer()
+                }
             }
         }
     }
 
+    // 抽离出来的注销函数（放在 onCreate 外面）
+    private fun showLogoutDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("提示")
+            .setMessage("确定要退出登录吗？")
+            .setPositiveButton("确定") { _, _ ->
+                lifecycleScope.launch(Dispatchers.IO) {
+                    AppDatabase.getDatabase(this@HomeActivity).userDao().clearUsers()
+                    withContext(Dispatchers.Main) {
+                        val intent = Intent(this@HomeActivity, LoginActivity::class.java)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        startActivity(intent)
+                        finish()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
     private fun initHomeUI() {
-        setContentView(R.layout.activity_home)
+
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
 
@@ -110,7 +132,7 @@ class HomeActivity : AppCompatActivity() {
         recyclerView.adapter = adapter
 
         loadCachedGifts()
-        if (myGifts.isEmpty()) loadGiftsFromServer(isInitial = true)
+        if (myGifts.isEmpty()) loadGiftsFromServer()
 
         findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout).apply {
             setColorSchemeColors("#8B4513".toColorInt())
@@ -491,18 +513,36 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // --- 5. 数据加载与缓存 ---
-    private fun loadGiftsFromServer(isInitial: Boolean = false) {
+    private fun loadGiftsFromServer() {
+        // 1. 立即在主线程找到引用并开始动画
+        val swipeLayout = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeRefreshLayout)
+        swipeLayout.isRefreshing = true
+
         lifecycleScope.launch {
             try {
-                val response = RetrofitClient.instance.getGifts()
-                if (response.isNotEmpty()) {
-                    myGifts.clear()
-                    myGifts.addAll(response)
-                    adapter.notifyDataSetChanged()
-                    cacheGiftsLocally()
+                // 2. 切换到 IO 线程请求数据
+                val response = withContext(Dispatchers.IO) {
+                    RetrofitClient.instance.getGifts()
+                }
+
+                // 3. 回到主线程处理 UI
+                withContext(Dispatchers.Main) {
+                    if (response != null) {
+                        myGifts.clear()
+                        myGifts.addAll(response)
+                        adapter.notifyDataSetChanged()
+                    }
+                }
+            } catch (e: Exception) {
+                // 如果报错（如 404、超时、解析失败），这里会捕获
+                Log.e("RETROFIT_ERROR", "请求失败: ${e.message}")
+            } finally {
+                // 4. 重点：无论如何，停止刷新动画并释放 UI
+                withContext(Dispatchers.Main) {
+                    swipeLayout.isRefreshing = false
                     updateEmptyView()
                 }
-            } catch (e: Exception) { Log.e("API", "Error: ${e.message}") }
+            }
         }
     }
 
@@ -683,44 +723,56 @@ class HomeActivity : AppCompatActivity() {
                 setPadding(0, 0, 0, 30)
             }
 
-            // 2. 修订雅号（account）
+            // 2. 修订雅号标题
+            val tvNicknameLabel = TextView(this@HomeActivity).apply {
+                text = "当前雅号 (App内称呼)："
+                textSize = 14f
+            }
+
+            // 3. 修订雅号输入框
             val etNickname = EditText(this@HomeActivity).apply {
                 hint = "请修订雅号"
                 setText(currentUser.account)
                 textSize = 18f
                 setSingleLine(true)
-                // 设置粗体衬线体，增加仪式感
                 typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
             }
 
-            // 3. 展示用户自己的邀请码（invitationCode）
+            // --- 新增：修改密码入口 ---
+            val tvChangePassword = TextView(this@HomeActivity).apply {
+                text = "👉 修订密信 (修改密码)"
+                textSize = 14f
+                paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG // 增加下划线
+                setTextColor("#A52A2A".toColorInt()) // 深红色
+                setPadding(0, 30, 0, 30)
+                setOnClickListener {
+                    showChangePasswordDialog() // 调用修改密码对话框
+                }
+            }
+
+            // 4. 展示用户自己的邀请码（invitationCode）
             val inviteSection = LinearLayout(this@HomeActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
-                setPadding(0, 50, 0, 20)
+                setPadding(0, 40, 0, 20)
             }
 
-            // ... 在 inviteSection 的按钮逻辑中 ...
             val btnQRCode = com.google.android.material.button.MaterialButton(this@HomeActivity).apply {
                 text = "出示邀约"
                 textSize = 10f
                 setOnClickListener {
-                    // 建议：将 URL 基础路径定义在 companion object 中
                     val baseUrl = "https://www.ichessgeek.com/api/v1/download.html"
                     val inviteUrl = "$baseUrl?from=${currentUser.invitationCode}"
-
-                    // 适当增大尺寸（如 600px），确保清晰度
                     val qrBitmap = generateQRCode(inviteUrl, 600)
                     showQRCodeDialog(qrBitmap, currentUser.invitationCode)
                 }
             }
-            inviteSection.addView(btnQRCode) // 紧跟在 btnCopy 后面
 
             val tvCodeLabel = TextView(this@HomeActivity).apply { text = "我的引荐码：" }
             val tvCodeValue = TextView(this@HomeActivity).apply {
                 text = currentUser.invitationCode
                 textSize = 20f
-                setTextColor("#A52A2A".toColorInt()) // 深红色
+                setTextColor("#A52A2A".toColorInt())
                 setPadding(20, 0, 20, 0)
                 typeface = Typeface.MONOSPACE
             }
@@ -736,27 +788,30 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
 
+            inviteSection.addView(btnQRCode)
             inviteSection.addView(tvCodeLabel)
             inviteSection.addView(tvCodeValue)
             inviteSection.addView(btnCopy)
 
-            // 组合 UI
-            container.addView(tvEmail)
-            container.addView(TextView(this@HomeActivity).apply { text = "当前雅号 (App内称呼)：" })
-            container.addView(etNickname)
-            container.addView(inviteSection)
-
-            // 加入 VIP 激励说明
+            // 5. VIP 激励说明
             val vipDesc = TextView(this@HomeActivity).apply {
                 text = "💡 雅号传千家：将引荐码转送给十位好友登记，即可晋升『雅鉴VIP』，开启置换分享权限。"
                 textSize = 11f
                 setTextColor(android.graphics.Color.DKGRAY)
+                setPadding(0, 20, 0, 0)
             }
+
+            // 组合所有 UI 控件
+            container.addView(tvEmail)
+            container.addView(tvNicknameLabel)
+            container.addView(etNickname)
+            container.addView(tvChangePassword) // 放在雅号下方
+            container.addView(inviteSection)
             container.addView(vipDesc)
 
             // 弹出对话框
             MaterialAlertDialogBuilder(this@HomeActivity)
-                .setTitle("— 【名帖 · 账户主】  —") // 明确说明是个人中心
+                .setTitle("— 【名帖 · 账户主】  —")
                 .setView(container)
                 .setPositiveButton("存入") { _, _ ->
                     val newName = etNickname.text.toString().trim()
@@ -764,8 +819,7 @@ class HomeActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             currentUser.account = newName
                             db.userDao().updateUser(currentUser)
-                            // 同步更新本地缓存，确保清单生成姓名一致
-                            getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {putString("saved_name", newName) }
+                            getSharedPreferences("UserPrefs", MODE_PRIVATE).edit { putString("saved_name", newName) }
                             Toast.makeText(this@HomeActivity, "名帖已更新", Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -854,7 +908,56 @@ class HomeActivity : AppCompatActivity() {
         return bitmap
     }
 
+    private fun showChangePasswordDialog() {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(80, 40, 80, 40)
+            setBackgroundColor("#FBF8EF".toColorInt())
+        }
+
+        // 定义三个输入框
+        val etOldPass = EditText(this).apply { hint = "原密信"; inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        val etNewPass = EditText(this).apply { hint = "新密信"; inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        val etConfirmPass = EditText(this).apply { hint = "确认新密信"; inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
+
+        container.addView(etOldPass)
+        container.addView(etNewPass)
+        container.addView(etConfirmPass)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("— 【 修订密信 】 —")
+            .setView(container)
+            .setPositiveButton("重设") { _, _ ->
+                val oldP = etOldPass.text.toString()
+                val newP = etNewPass.text.toString()
+                val confirmP = etConfirmPass.text.toString()
+
+                if (newP != confirmP) {
+                    Toast.makeText(this, "两次输入的密信不一", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                // 发起网络请求
+                lifecycleScope.launch {
+                    try {
+                        val response = RetrofitClient.instance.updatePassword(
+                            currentUser?.email ?: "", oldP, newP
+                        )
+                        if (response.success) {
+                            Toast.makeText(this@HomeActivity, "密信修订成功，请妥善保管", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@HomeActivity, "原密信有误：${response.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(this@HomeActivity, "云端连接失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
     override fun onResume() { super.onResume(); if (isMusicPlaying) mediaPlayer?.start() }
-    override fun onPause() { super.onPause(); mediaPlayer?.pause() }
+    override fun onPause() { super.onPause() }
     override fun onDestroy() { super.onDestroy(); mediaPlayer?.release() }
 }

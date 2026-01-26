@@ -1,101 +1,58 @@
 package com.dee.android.pbl.takechinahome
 
+import android.content.Intent
 import android.os.Bundle
-import android.util.Log
+import android.os.Handler
+import android.os.Looper
+import android.view.animation.AnimationUtils
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import retrofit2.*
-import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.*
-import android.content.Intent
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 确保您已经按上一步教的创建了 activity_main.xml 布局文件
         setContentView(R.layout.activity_main)
 
-        // 1. 找到图片控件
+        // 1. 视觉：启动 Logo 渐变动画
         val logoImage = findViewById<ImageView>(R.id.logoImage)
-
-        // 2. 加载并启动动画
-        val fadeInAnim = android.view.animation.AnimationUtils.loadAnimation(this, R.anim.fade_in)
+        val statusText = findViewById<TextView>(R.id.statusText)
+        val fadeInAnim = AnimationUtils.loadAnimation(this, R.anim.fade_in)
         logoImage.startAnimation(fadeInAnim)
 
-        // 3. 原有的登录逻辑保持不变
-        testLogin()
+        // 2. 核心逻辑：延迟 1.5 秒后根据登录状态分流
+        Handler(Looper.getMainLooper()).postDelayed({
+            checkUserStatusAndJump()
+        }, 1500)
     }
 
-    private fun testLogin() {
-        val retrofit = Retrofit.Builder()
-            .baseUrl("https://www.ichessgeek.com/api/v1/")
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-
-        // 注意这里是 ::class.java
-        val service = retrofit.create(ApiService::class.java)
-
-        service.login("admin", "china123").enqueue(object : Callback<LoginResponse> {
-            override fun onResponse(call: Call<LoginResponse>, response: Response<LoginResponse>) {
-                // 找到界面上的文字控件
-                val statusTextView = findViewById<TextView>(R.id.statusText)
-
-                if (response.isSuccessful) {
-                    val loginRes = response.body()
-                    if (loginRes?.status == "success") {
-                        statusTextView.text = "鉴权成功，即将进入..."
-
-                        // 使用 Handler 延迟 1.5 秒跳转，给用户看一眼漂亮 Logo 的时间
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            // 这里暂时用打印模拟跳转，下一课我们教 Intent 跳转
-                            Log.d("TakeChinaHome", "跳转到礼品日历页面")
-                            // 明确指明是 MainActivity 的上下文
-                            val intent = Intent(this@MainActivity, HomeActivity::class.java)
-                            startActivity(intent)
-
-                            // 动画过渡
-                            @Suppress("DEPRECATION")
-                            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                            finish()
-                        }, 1500)
-                    } else {
-                        statusTextView.text = getString(R.string.login_success, loginRes?.message)
-                    }
-                } else {
-                    statusTextView.text = getString(R.string.error_server_response, response.code())
-                }
+    private fun checkUserStatusAndJump() {
+        lifecycleScope.launch {
+            // 从 Room 数据库中寻找当前登录的用户
+            val db = AppDatabase.getDatabase(this@MainActivity)
+            val currentUser = withContext(Dispatchers.IO) {
+                db.userDao().getCurrentUser()
             }
 
-            override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
-                val statusTextView = findViewById<TextView>(R.id.statusText)
-                statusTextView.text = "连接失败，请检查网络"
-                Log.e("TakeChinaHome", "Error: ${t.message}")
+            if (currentUser != null) {
+                // 情况 A：本地有名帖，直接进入画卷
+                val intent = Intent(this@MainActivity, HomeActivity::class.java)
+                startActivity(intent)
+            } else {
+                // 情况 B：本地无名帖（初次安装或已注销），前往登录页面
+                val intent = Intent(this@MainActivity, LoginActivity::class.java)
+                startActivity(intent)
             }
-        })
-    }
 
-// --- 以下类定义请放在类定义大括号外 ---
-
-    data class LoginResponse(
-        val status: String,
-        val data: LoginData? = null,
-        val message: String? = null
-    )
-
-    data class LoginData(
-        val token: String,
-        val role: String,
-        val welcomeMsg: String
-    )
-
-    interface ApiService {
-        @FormUrlEncoded
-        @POST("login.php")
-        fun login(
-            @Field("username") user: String,
-            @Field("password") pass: String
-        ): Call<LoginResponse>
+            // 动画过渡并关闭当前启动页
+            @Suppress("DEPRECATION")
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            finish()
+        }
     }
 }

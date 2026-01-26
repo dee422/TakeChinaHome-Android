@@ -16,9 +16,9 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="80dp"
             android:fontFamily="serif"
-            android:text="— 名 帖 登 记 —"
+            android:text="— 归 雁 寻 踪 —"
             android:textColor="#8B4513"
             android:textSize="24sp"
             android:textStyle="bold" />
@@ -28,105 +28,63 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:fontFamily="serif"
-            android:text="请录入引荐信息，以开启礼序画卷"
+            android:text="请输入登记鸿雁及密押以回归"
             android:textColor="#4A4A4A"
             android:textSize="14sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="48dp"
+            android:layout_marginTop="60dp"
             android:orientation="vertical">
 
             <EditText
-                android:id="@+id/etRegAccount"
+                android:id="@+id/etLoginEmail"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:background="@null"
                 android:fontFamily="serif"
-                android:hint="雅号 (账号)"
-                android:inputType="text"
-                android:paddingStart="4dp"
+                android:hint="鸿雁 (注册邮箱)"
+                android:inputType="textEmailAddress"
                 android:textColor="#2E2E2E"
                 android:textSize="16sp" />
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#D2B48C" />
 
             <EditText
-                android:id="@+id/etRegPassword"
+                android:id="@+id/etLoginPassword"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="20dp"
                 android:background="@null"
                 android:drawableEnd="@android:drawable/ic_menu_view"
                 android:fontFamily="serif"
                 android:hint="密押 (密码)"
                 android:inputType="textPassword"
-                android:paddingStart="4dp"
-                android:paddingEnd="8dp"
-                android:textColor="#2E2E2E"
-                android:textSize="16sp" />
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#D2B48C" />
-
-            <EditText
-                android:id="@+id/etRegEmail"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginTop="16dp"
-                android:background="@null"
-                android:fontFamily="serif"
-                android:hint="鸿雁 (邮箱)"
-                android:inputType="textEmailAddress"
-                android:paddingStart="4dp"
-                android:textColor="#2E2E2E"
-                android:textSize="16sp" />
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#D2B48C" />
-
-            <EditText
-                android:id="@+id/etRegInviteCode"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginTop="16dp"
-                android:background="@null"
-                android:fontFamily="serif"
-                android:hint="引荐码 (若无，可邮件申请)"
-                android:inputType="text"
-                android:paddingStart="4dp"
                 android:textColor="#2E2E2E"
                 android:textSize="16sp" />
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#D2B48C" />
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRegisterSubmit"
+            android:id="@+id/btnLoginSubmit"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:layout_marginTop="48dp"
+            android:layout_marginTop="60dp"
             android:fontFamily="serif"
-            android:text="确认登记"
+            android:text="由此登入"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
             app:backgroundTint="#8B4513"
             app:cornerRadius="4dp" />
 
         <TextView
-            android:id="@+id/tvApplyInviteCode"
+            android:id="@+id/tvGoRegister"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:fontFamily="serif"
-            android:text="「无引荐码？由此申请」"
-            android:textColor="#B22222"
+            android:text="初来乍到？由此登记名帖"
+            android:textColor="#4A4A4A"
             android:textSize="13sp" />
 
-        <TextView
-            android:id="@+id/tvGoLogin"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="32dp"
-            android:fontFamily="serif"
-            android:padding="8dp"
-            android:text="已有名帖？由此登入"
-            android:textColor="#4A4A4A"
-            android:textSize="13sp" /> </LinearLayout>
+    </LinearLayout>
 </ScrollView>

@@ -14,4 +14,6 @@
 
         <item name="colorControlActivated">#8B4513</item>
     </style>
+    <style name="CircleImageStyle">
+        <item name="cornerSize">50%</item> </style>
 </resources>

@@ -4,8 +4,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
-    // 1. 建议带上 www（如果你服务器配置了的话），并包含 api/v1/，结尾必须有斜杠
-    private const val BASE_URL = "https://www.ichessgeek.com/api/v1/"
+    // 修正建议：确保这里的地址在浏览器能直接打开 gifts.json
+    private const val BASE_URL = "https://ichessgeek.com/api/v1/"
 
     val instance: ApiService by lazy {
         Retrofit.Builder()

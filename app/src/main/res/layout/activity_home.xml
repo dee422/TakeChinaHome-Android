@@ -21,21 +21,46 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="16dp"
+                    android:paddingTop="16dp">
+
+                    <TextView
+                        android:id="@+id/welcomeText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:text="载入中..."
+                        android:textColor="#5D4037"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/userAvatarText"
+                        android:layout_width="45dp"
+                        android:layout_height="45dp"
+                        android:layout_alignParentEnd="true"
+                        android:background="@drawable/circle_avatar_bg"
+                        android:gravity="center"
+                        android:textColor="#FFFFFF"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+                </RelativeLayout>
+
                 <androidx.appcompat.widget.Toolbar
                     android:id="@+id/toolbar"
                     android:layout_width="match_parent"
                     android:layout_height="?attr/actionBarSize"
                     app:title="岁时礼序 · 礼品日历"
                     app:titleTextColor="#8B4513"
-                    app:titleTextAppearance="@style/TextAppearance.AppCompat.Widget.ActionBar.Title"
-                    app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+                    app:titleTextAppearance="@style/TextAppearance.AppCompat.Widget.ActionBar.Title" />
 
                 <LinearLayout
                     android:id="@+id/btnRegisterIntent"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="16dp"
-                    android:layout_marginTop="0dp"
                     android:layout_marginBottom="12dp"
                     android:background="?attr/selectableItemBackground"
                     android:gravity="center_vertical"
@@ -45,8 +70,8 @@
                     <ImageView
                         android:layout_width="22dp"
                         android:layout_height="22dp"
-                        android:src="@drawable/ic_edit"
                         android:contentDescription="@string/name_edit"
+                        android:src="@drawable/ic_edit"
                         app:tint="#8B4513" />
 
                     <TextView
@@ -65,6 +90,7 @@
                     android:layout_marginHorizontal="16dp"
                     android:background="#8B4513" />
             </LinearLayout>
+
         </com.google.android.material.appbar.CollapsingToolbarLayout>
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -83,8 +109,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:padding="8dp"
-                android:scrollbars="vertical" />
+                android:padding="8dp" />
 
             <TextView
                 android:id="@+id/tvEmptyHint"
