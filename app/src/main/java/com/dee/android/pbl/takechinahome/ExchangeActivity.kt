@@ -190,47 +190,90 @@ class ExchangeActivity : AppCompatActivity() {
 
     private fun showDetailDialog(item: ExchangeGift) {
         val detailView = layoutInflater.inflate(R.layout.dialog_exchange_detail, null)
+
+        // 绑定基础数据
         detailView.findViewById<TextView>(R.id.tvDetailTitle).text = item.title
         detailView.findViewById<TextView>(R.id.tvDetailStory).text = item.story
         detailView.findViewById<TextView>(R.id.tvDetailWant).text = "愿易：${item.want}"
         detailView.findViewById<TextView>(R.id.tvDetailContact).text = "暗号：${item.contact}"
 
+        // 加载图片
         val ivDetail = detailView.findViewById<ImageView>(R.id.ivDetailImage)
         Glide.with(this)
             .load(item.imageUrl)
             .placeholder(android.R.drawable.ic_menu_gallery)
             .into(ivDetail)
 
-        MaterialAlertDialogBuilder(this)
+        // 构建对话框
+        val builder = MaterialAlertDialogBuilder(this)
             .setTitle("藏品详情")
             .setView(detailView)
             .setPositiveButton("知晓了", null)
-            .setNeutralButton("下架此物") { _, _ -> confirmDelete(item.id) }
-            .show()
+
+        // --- 逻辑核心：状态机判定 ---
+        // status: 1 (审核中), 2 (已上架)
+        if (item.status == 1 || item.status == 2) {
+            builder.setNeutralButton("申请下架") { _, _ ->
+                performTakeDownRequest(item)
+            }
+        } else {
+            // status: 0 (草稿), 3 (已下架)
+            builder.setNeutralButton("彻底删除") { _, _ ->
+                confirmDelete(item.id)
+            }
+        }
+
+        builder.show()
     }
 
     private fun confirmDelete(giftId: String) {
         MaterialAlertDialogBuilder(this)
-            .setTitle("下架确认")
-            .setMessage("确定要将此物移出市集吗？")
+            .setTitle("彻底抹除")
+            .setMessage("确定要将此物从画卷中永久涂抹吗？(此操作不可撤销)")
             .setPositiveButton("确定") { _, _ ->
                 lifecycleScope.launch {
                     val db = AppDatabase.getDatabase(this@ExchangeActivity)
                     db.exchangeDao().deleteExchangeGift(giftId)
                     loadExchangeData()
-                    Toast.makeText(this@ExchangeActivity, "已下架", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@ExchangeActivity, "已彻底删除", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("留着", null)
             .show()
     }
 
+    /* 新增：向后台发起下架申请，成功后更新本地状态  */
+    private fun performTakeDownRequest(item: ExchangeGift) {
+        lifecycleScope.launch {
+            try {
+                // 1. 调用 ApiService 中的申请下架接口
+                val response = RetrofitClient.instance.requestTakeDown(item.id)
+
+                if (response.success) {
+                    // 2. 后端同步成功后，将本地状态改为 3 (已下架)
+                    val db = AppDatabase.getDatabase(this@ExchangeActivity)
+                    item.status = 3
+                    withContext(Dispatchers.IO) {
+                        db.exchangeDao().insertExchangeGift(item) // Room 的 insert 通常配置为 OnConflictStrategy.REPLACE
+                    }
+
+                    // 3. 刷新 UI
+                    loadExchangeData()
+                    Toast.makeText(this@ExchangeActivity, "下架申请已获准，此物已隐去", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@ExchangeActivity, "下架失败：${response.message}", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("Exchange", "下架异常: ${e.message}")
+                Toast.makeText(this@ExchangeActivity, "云端信道拥塞，请稍后再试", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private fun saveExchangeItem(title: String, story: String, want: String, contact: String, uri: Uri?) {
         lifecycleScope.launch {
             val db = AppDatabase.getDatabase(this@ExchangeActivity)
             val currentUser = db.userDao().getCurrentUser()
-
-            // 将选中的图片保存到本地路径
             val finalImagePath = uri?.let { saveImageToInternal(it) } ?: ""
 
             val newItem = ExchangeGift(
@@ -240,12 +283,27 @@ class ExchangeActivity : AppCompatActivity() {
                 story = story,
                 want = want,
                 contact = contact,
-                imageUrl = finalImagePath
+                imageUrl = finalImagePath,
+                status = 1 // 直接设为 1：审核中
             )
+
+            // 1. 存本地
             db.exchangeDao().insertExchangeGift(newItem)
+
+            // 2. 发后台审核
+            try {
+                val response = RetrofitClient.instance.applyExchangeReview(
+                    newItem.id, newItem.ownerName, newItem.title,
+                    newItem.story, newItem.want, newItem.contact, ""
+                )
+                if (response.success) {
+                    Toast.makeText(this@ExchangeActivity, "已提交后台审核", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@ExchangeActivity, "本地已保存，联网后自动同步审核", Toast.LENGTH_SHORT).show()
+            }
+
             loadExchangeData()
-            Toast.makeText(this@ExchangeActivity, "宝贝已入市集", Toast.LENGTH_SHORT).show()
-            selectedImageUri = null
         }
     }
 }

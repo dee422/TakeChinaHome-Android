@@ -53,6 +53,33 @@ interface ApiService {
 
     @GET("exchange/market.json")
     suspend fun getMarketGifts(): List<Gift>
+
+    // 6. 提交置换品申请审核 (使用 FormUrlEncoded 方便 PHP 处理)
+    @FormUrlEncoded
+    @POST("exchange/apply_review.php")
+    suspend fun applyExchangeReview(
+        @Field("id") id: String,
+        @Field("owner") owner: String,
+        @Field("title") title: String,
+        @Field("story") story: String,
+        @Field("want") want: String,
+        @Field("contact") contact: String,
+        @Field("image_data") imageData: String? = null // 可传 Base64 或图片链接
+    ): ApiResponse
+
+    // 7. 确认订单上传 (将生成的订单元数据发至后台)
+    @FormUrlEncoded
+    @POST("orders/confirm.php") // 确保路径与服务器一致
+    suspend fun uploadOrderConfirm(
+        @Field("user_email") user_email: String,
+        @Field("contact_name") contact_name: String,
+        @Field("order_details_json") order_details_json: String
+    ): ApiResponse
+
+    // 8. 申请下架
+    @FormUrlEncoded
+    @POST("exchange/take_down.php")
+    suspend fun requestTakeDown(@Field("id") itemId: String): ApiResponse
 }
 
 /**

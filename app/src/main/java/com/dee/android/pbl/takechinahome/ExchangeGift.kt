@@ -17,5 +17,9 @@ data class ExchangeGift(
     var story: String = "",
     var want: String = "",
     var contact: String = "",
-    var imageUrl: String = ""
+    var imageUrl: String = "",
+
+    // --- 新增：审核状态 ---
+    // 0: 本地草稿(仅自己可见), 1: 审核中, 2: 已公示(管理员确认), 3: 已下架
+    var status: Int = 0
 )

@@ -368,11 +368,14 @@ class HomeActivity : AppCompatActivity() {
                 canvas.drawText("岁时", sealX + 75f, sealY + 65f, paint)
                 canvas.drawText("礼序", sealX + 75f, sealY + 125f, paint)
 
-                // 最后的逻辑处理：是预览还是直接保存
+                // 找到最末尾的逻辑分支并修改：
                 if (shouldSave) {
-                    saveBitmapToGallery(bitmap)
+                    saveBitmapToGallery(bitmap) { success ->
+                        if (success) uploadOrderToBackend(finalContactName, activeGifts)
+                    }
                 } else {
-                    showImagePreviewDialog(bitmap)
+                    // 传入参数供弹窗内部使用
+                    showImagePreviewDialog(bitmap, finalContactName, activeGifts)
                 }
 
             } catch (e: Exception) {
@@ -470,7 +473,7 @@ class HomeActivity : AppCompatActivity() {
         return lines
     }
 
-    private fun saveBitmapToGallery(bitmap: Bitmap) {
+    private fun saveBitmapToGallery(bitmap: Bitmap, onSaved: ((Boolean) -> Unit)? = null) {
         val filename = "Order_${System.currentTimeMillis()}.jpg"
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
@@ -480,20 +483,84 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        lifecycleScope.launch {
-            uri?.let { imageUri ->
-                contentResolver.openOutputStream(imageUri)?.use { stream ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var isSuccess = false
+            try {
+                uri?.let { imageUri ->
+                    contentResolver.openOutputStream(imageUri)?.use { stream ->
+                        isSuccess = bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e("Gallery", "保存失败: ${e.message}")
             }
-            // 只需要吐司提示即可，不要再调用 showImagePreviewDialog 了
-            Toast.makeText(this@HomeActivity, "画卷已存入相册", Toast.LENGTH_SHORT).show()
+
+            withContext(Dispatchers.Main) {
+                if (isSuccess) {
+                    Toast.makeText(this@HomeActivity, "画卷已存入相册", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@HomeActivity, "存入失败，请检查存储权限", Toast.LENGTH_SHORT).show()
+                }
+                // 关键：在这里触发回调
+                onSaved?.invoke(isSuccess)
+            }
         }
     }
 
-    private fun showImagePreviewDialog(bitmap: Bitmap) {
+    private fun uploadOrderToBackend(contactName: String, giftList: List<Gift>) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val user = currentUser ?: return@launch
+
+                // 1. 序列化数据：确保字段名与你 PHP 中 bind_param 的顺序和逻辑匹配
+                val orderDetailsJson = Gson().toJson(giftList.map {
+                    mapOf(
+                        "name" to it.name,
+                        "qty" to it.customQuantity,
+                        "spec" to it.spec,
+                        "note" to it.customNotes
+                    )
+                })
+
+                // 2. 调用接口：注意参数名要和 ApiService 里的 @Field 标签完全一致
+                val response = RetrofitClient.instance.uploadOrderConfirm(
+                    user_email = user.email,
+                    contact_name = contactName,
+                    order_details_json = orderDetailsJson
+                )
+
+                withContext(Dispatchers.Main) {
+                    // 因为返回的是 ApiResponse，直接判断 success 字段
+                    if (response.success) {
+                        Log.d("Sync", "订单同步成功")
+                        Toast.makeText(this@HomeActivity, "订单已同步至云端", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@HomeActivity, "同步失败: ${response.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    // 这一句能告诉你到底是 404、JSON解析失败 还是 证书问题
+                    Log.e("SyncError", "具体原因: ${e.message}")
+                    Toast.makeText(this@HomeActivity, "同步失败: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // 增加参数传递，以便在点击保存时知道要上传什么数据
+    private fun showImagePreviewDialog(bitmap: Bitmap, contactName: String, activeGifts: List<Gift>) {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            // 关键：给整个容器设置 padding，让它看起来不那么局促
+            setPadding(0, 0, 0, 20)
+            setBackgroundColor("#FBF8EF".toColorInt())
+        }
+
+        // 1. 图片预览（增加权重 1f）
         val scrollView = ScrollView(this).apply {
-            layoutParams = FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.7).toInt())
+            layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
         }
         val imageView = ImageView(this).apply {
             setImageBitmap(bitmap)
@@ -501,15 +568,70 @@ class HomeActivity : AppCompatActivity() {
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         scrollView.addView(imageView)
+        container.addView(scrollView)
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle("清单预览")
-            .setView(scrollView)
-            .setPositiveButton("存入相册") { _, _ ->
-                saveBitmapToGallery(bitmap) // 在这里调用真正的保存逻辑
+        // 2. 横排按钮栏
+        val buttonLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(-1, -2)
+            gravity = Gravity.CENTER
+            // 增加一点内边距，让按钮离屏幕边缘远一点
+            setPadding(40, 30, 40, 30)
+        }
+
+        fun createStyledButton(txt: String, color: String) = com.google.android.material.button.MaterialButton(this).apply {
+            text = txt
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(color.toColorInt())
+            // 每个按钮权重为 1，平分布局
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
+                setMargins(10, 0, 10, 0)
             }
-            .setNegativeButton("返回", null)
+            cornerRadius = 10
+            insetTop = 0
+            insetBottom = 0
+        }
+
+        val btnClear = createStyledButton("裁撤", "#757575")
+        val btnSave = createStyledButton("存图", "#8B4513")
+        val btnUpload = createStyledButton("下单", "#A52A2A")
+
+        buttonLayout.addView(btnClear)
+        buttonLayout.addView(btnSave)
+        buttonLayout.addView(btnUpload)
+        container.addView(buttonLayout)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("— 画卷预览 · 确入 —")
+            .setView(container)
             .show()
+
+        // 按钮逻辑...
+        btnClear.setOnClickListener { dialog.dismiss(); showClearConfirmDialog() }
+        btnSave.setOnClickListener { saveBitmapToGallery(bitmap); dialog.dismiss() }
+        btnUpload.setOnClickListener { uploadOrderToBackend(contactName, activeGifts); dialog.dismiss() }
+    }
+
+    // 2. 确认弹窗函数
+    private fun showClearConfirmDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("裁撤提醒")
+            .setMessage("确定要清空当前画卷中已选中的礼品吗？此操作不可撤销。")
+            .setPositiveButton("确定") { _, _ ->
+                clearCurrentOrder() // 用户确定后，再调用执行逻辑
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    // 辅助函数：清空当前已“确入画卷”的状态
+    private fun clearCurrentOrder() {
+        myGifts.forEach { it.isSaved = false }
+        cacheGiftsLocally()
+        adapter.notifyDataSetChanged()
+        updateEmptyView()
+        Toast.makeText(this, "清单已清空", Toast.LENGTH_SHORT).show()
     }
 
     // --- 5. 数据加载与缓存 ---
@@ -706,7 +828,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val db = AppDatabase.getDatabase(this@HomeActivity)
             // 获取当前标记为 isCurrentUser 的用户
-            val currentUser = db.userDao().getCurrentUser() ?: return@launch
+            val userInDb = db.userDao().getCurrentUser() ?: return@launch
 
             // 主容器：古风宣纸色
             val container = LinearLayout(this@HomeActivity).apply {
@@ -717,7 +839,7 @@ class HomeActivity : AppCompatActivity() {
 
             // 1. 展示登录邮箱（不可修改）
             val tvEmail = TextView(this@HomeActivity).apply {
-                text = "登记邮箱：${currentUser.email}"
+                text = "登记邮箱：${userInDb.email}"
                 textSize = 13f
                 setTextColor(Color.GRAY)
                 setPadding(0, 0, 0, 30)
@@ -732,7 +854,7 @@ class HomeActivity : AppCompatActivity() {
             // 3. 修订雅号输入框
             val etNickname = EditText(this@HomeActivity).apply {
                 hint = "请修订雅号"
-                setText(currentUser.account)
+                setText(userInDb.account)
                 textSize = 18f
                 setSingleLine(true)
                 typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
@@ -762,15 +884,15 @@ class HomeActivity : AppCompatActivity() {
                 textSize = 10f
                 setOnClickListener {
                     val baseUrl = "https://www.ichessgeek.com/api/v1/download.html"
-                    val inviteUrl = "$baseUrl?from=${currentUser.invitationCode}"
+                    val inviteUrl = "$baseUrl?from=${userInDb.invitationCode}"
                     val qrBitmap = generateQRCode(inviteUrl, 600)
-                    showQRCodeDialog(qrBitmap, currentUser.invitationCode)
+                    showQRCodeDialog(qrBitmap, userInDb.invitationCode)
                 }
             }
 
             val tvCodeLabel = TextView(this@HomeActivity).apply { text = "我的引荐码：" }
             val tvCodeValue = TextView(this@HomeActivity).apply {
-                text = currentUser.invitationCode
+                text = userInDb.invitationCode
                 textSize = 20f
                 setTextColor("#A52A2A".toColorInt())
                 setPadding(20, 0, 20, 0)
@@ -782,7 +904,7 @@ class HomeActivity : AppCompatActivity() {
                 textSize = 10f
                 setOnClickListener {
                     val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    val clip = android.content.ClipData.newPlainText("InviteCode", currentUser.invitationCode)
+                    val clip = android.content.ClipData.newPlainText("InviteCode", userInDb.invitationCode)
                     clipboard.setPrimaryClip(clip)
                     Toast.makeText(this@HomeActivity, "引荐码已誊抄，可发给好友", Toast.LENGTH_SHORT).show()
                 }
@@ -817,9 +939,14 @@ class HomeActivity : AppCompatActivity() {
                     val newName = etNickname.text.toString().trim()
                     if (newName.isNotEmpty()) {
                         lifecycleScope.launch {
-                            currentUser.account = newName
-                            db.userDao().updateUser(currentUser)
+                            userInDb.account = newName
+                            db.userDao().updateUser(userInDb)
+                            this@HomeActivity.currentUser = userInDb
                             getSharedPreferences("UserPrefs", MODE_PRIVATE).edit { putString("saved_name", newName) }
+                            // 立即刷新首页 UI
+                            findViewById<TextView>(R.id.welcomeText).text = "尊驾 $newName，别来无恙"
+                            findViewById<TextView>(R.id.userAvatarText).text = newName.take(1)
+
                             Toast.makeText(this@HomeActivity, "名帖已更新", Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -833,10 +960,12 @@ class HomeActivity : AppCompatActivity() {
         val bitMatrix = com.google.zxing.qrcode.QRCodeWriter().encode(
             text, com.google.zxing.BarcodeFormat.QR_CODE, size, size
         )
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+        // 建议使用 ARGB_8888 保证兼容性
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         for (x in 0 until size) {
             for (y in 0 until size) {
-                bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
+                // 💡 视觉优化：将纯黑换成深褐色 (#3E2723)，更符合宣纸质感
+                bitmap.setPixel(x, y, if (bitMatrix[x, y]) "#3E2723".toColorInt() else Color.WHITE)
             }
         }
         return bitmap
@@ -868,6 +997,7 @@ class HomeActivity : AppCompatActivity() {
         val ivQR = ImageView(this).apply {
             setImageBitmap(qrBitmap)
             layoutParams = FrameLayout.LayoutParams(600, 600)
+            scaleType = ImageView.ScaleType.FIT_CENTER
         }
         qrFrame.addView(ivQR)
 
@@ -886,9 +1016,12 @@ class HomeActivity : AppCompatActivity() {
             .setTitle("生成邀约图帖") // 增加标题提示
             .setView(container)
             .setPositiveButton("存入相册") { _, _ ->
-                // 核心逻辑：将 container 转化为图片
                 val imageBitmap = viewToBitmap(container)
-                saveBitmapToGallery(imageBitmap) // 调用你之前写好的保存到 MediaStore 的方法
+                saveBitmapToGallery(imageBitmap) { success ->
+                    if (success) {
+                        Toast.makeText(this, "邀约图帖已封存至相册", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
             .setNegativeButton("隐去", null)
             .show()
@@ -909,16 +1042,28 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showChangePasswordDialog() {
+        // 1. 安全拦截：确保用户非空
+        val user = currentUser ?: run {
+            Toast.makeText(this, "用户信息异常，请重新登录", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(80, 40, 80, 40)
             setBackgroundColor("#FBF8EF".toColorInt())
         }
 
-        // 定义三个输入框
-        val etOldPass = EditText(this).apply { hint = "原密信"; inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
-        val etNewPass = EditText(this).apply { hint = "新密信"; inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
-        val etConfirmPass = EditText(this).apply { hint = "确认新密信"; inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        // 定义输入框样式
+        fun createPassET(hintStr: String) = EditText(this).apply {
+            hint = hintStr
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setPadding(0, 40, 0, 40) // 增加上下间距，视觉更舒缓
+        }
+
+        val etOldPass = createPassET("原密信")
+        val etNewPass = createPassET("新密信")
+        val etConfirmPass = createPassET("确认新密信")
 
         container.addView(etOldPass)
         container.addView(etNewPass)
@@ -928,27 +1073,38 @@ class HomeActivity : AppCompatActivity() {
             .setTitle("— 【 修订密信 】 —")
             .setView(container)
             .setPositiveButton("重设") { _, _ ->
-                val oldP = etOldPass.text.toString()
-                val newP = etNewPass.text.toString()
-                val confirmP = etConfirmPass.text.toString()
+                val oldP = etOldPass.text.toString().trim()
+                val newP = etNewPass.text.toString().trim()
+                val confirmP = etConfirmPass.text.toString().trim()
 
+                // 2. 基础校验
                 if (newP != confirmP) {
                     Toast.makeText(this, "两次输入的密信不一", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
+                if (newP.length < 6) {
+                    Toast.makeText(this, "新密信过短", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
 
-                // 发起网络请求
+                // 3. 发起网络请求
                 lifecycleScope.launch {
                     try {
+                        // 显式指定参数名，防止传错位
                         val response = RetrofitClient.instance.updatePassword(
-                            currentUser?.email ?: "", oldP, newP
+                            email = user.email,
+                            oldPass = oldP,
+                            newPass = newP
                         )
+
                         if (response.success) {
                             Toast.makeText(this@HomeActivity, "密信修订成功，请妥善保管", Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(this@HomeActivity, "原密信有误：${response.message}", Toast.LENGTH_SHORT).show()
+                            // 提示具体的失败原因（如原密码错误）
+                            Toast.makeText(this@HomeActivity, "修订失败：${response.message}", Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
+                        android.util.Log.e("UpdatePass", "Error: ${e.message}")
                         Toast.makeText(this@HomeActivity, "云端连接失败", Toast.LENGTH_SHORT).show()
                     }
                 }
