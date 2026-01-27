@@ -50,6 +50,12 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <activity
+            android:name=".OrderHistoryActivity"
+            android:exported="false"
+            android:label="往期清单"
+            android:theme="@style/Theme.TakeChinaHome" />
+
     </application>
 
 </manifest>

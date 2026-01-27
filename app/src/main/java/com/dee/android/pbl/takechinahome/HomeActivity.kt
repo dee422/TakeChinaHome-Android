@@ -64,25 +64,25 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 统一在这里设置一次布局
+        // 1. 设置布局
         setContentView(R.layout.activity_home)
 
-        // 调用统一初始化方法
+        // 2. 初始化 UI 组件（包含按钮点击事件）
         initHomeUI()
 
-        // 数据库读取逻辑：更新欢迎语和头像
+        // 3. 数据库读取逻辑：更新欢迎语和头像
         lifecycleScope.launch {
             val db = AppDatabase.getDatabase(this@HomeActivity)
             currentUser = withContext(Dispatchers.IO) {
                 db.userDao().getCurrentUser()
             }
 
-            currentUser?.let {
-                val nickname = it.account
+            currentUser?.let { user ->
+                val nickname = user.account
                 findViewById<TextView>(R.id.welcomeText).text = "尊驾 $nickname，别来无恙"
                 findViewById<TextView>(R.id.userAvatarText).text = if (nickname.isNotEmpty()) nickname.take(1) else "佚"
 
-                // 数据准备好后，如果是第一次进入，执行同步
+                // 4. 数据准备好后，如果是第一次进入（列表为空），执行同步
                 if (myGifts.isEmpty()) {
                     loadGiftsFromServer()
                 }
@@ -111,16 +111,39 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun initHomeUI() {
-
+        // 1. Toolbar 与 基础 UI 设置
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
 
         startBGM()
         tvEmptyHint = findViewById(R.id.tvEmptyHint)
 
-        findViewById<View>(R.id.btnRegisterIntent).setOnClickListener { showWishFormDialog() }
-        findViewById<View>(R.id.fabGenerate).setOnClickListener { generateOrderImage() }
+        // 2. 顶部“名帖/修订”点击事件 (原 btnRegisterIntent)
+        findViewById<View>(R.id.btnRegisterIntent).setOnClickListener {
+            // 建议改为显示名帖修改，或者保留你原本的 showWishFormDialog
+            showProfileEditDialog()
+        }
 
+        // 3. 核心：右下角“生成清单”按钮逻辑
+        findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.fabGenerate).setOnClickListener {
+            // 过滤出已确入画轴的礼品
+            val activeGifts = myGifts.filter { it.isSaved }
+            if (activeGifts.isEmpty()) {
+                Toast.makeText(this, "画轴空空，请先勾勒礼遇", Toast.LENGTH_SHORT).show()
+            } else {
+                // 调用生成图片并预览的逻辑
+                generateOrderImage()
+            }
+        }
+
+        // 4. 核心：右下角“往期卷宗”按钮逻辑
+        findViewById<com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton>(R.id.fabHistory).setOnClickListener {
+            // 跳转到我们新建的历史记录页面
+            val intent = Intent(this@HomeActivity, OrderHistoryActivity::class.java)
+            startActivity(intent)
+        }
+
+        // 5. 列表与适配器初始化
         val recyclerView = findViewById<RecyclerView>(R.id.giftRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
@@ -131,9 +154,13 @@ class HomeActivity : AppCompatActivity() {
         })
         recyclerView.adapter = adapter
 
+        // 6. 数据加载逻辑
         loadCachedGifts()
-        if (myGifts.isEmpty()) loadGiftsFromServer()
+        if (myGifts.isEmpty()) {
+            loadGiftsFromServer()
+        }
 
+        // 7. 下拉刷新逻辑
         findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout).apply {
             setColorSchemeColors("#8B4513".toColorInt())
             setOnRefreshListener { refreshGifts(this) }
@@ -530,20 +557,52 @@ class HomeActivity : AppCompatActivity() {
                     order_details_json = orderDetailsJson
                 )
 
+                // ... 之前的 serialization 和 API 调用代码 ...
                 withContext(Dispatchers.Main) {
-                    // 因为返回的是 ApiResponse，直接判断 success 字段
                     if (response.success) {
-                        Log.d("Sync", "订单同步成功")
+                        // 1. 同步成功的轻提示
                         Toast.makeText(this@HomeActivity, "订单已同步至云端", Toast.LENGTH_SHORT).show()
+
+                        // 2. 准备本地搬家
+                        val historyDao = AppDatabase.getDatabase(this@HomeActivity).orderHistoryDao()
+                        val timeFormatter = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
+                        val currentTime = timeFormatter.format(java.util.Date())
+
+                        // 3. 在协程中处理本地数据库写入
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            try {
+                                val historyEntry = OrderHistory(
+                                    submitTime = currentTime,
+                                    contactName = contactName,
+                                    detailsJson = orderDetailsJson,
+                                    userEmail = user.email
+                                )
+                                historyDao.insertOrder(historyEntry)
+
+                                withContext(Dispatchers.Main) {
+                                    // 4. 最终交互：确认是否清空
+                                    MaterialAlertDialogBuilder(this@HomeActivity)
+                                        .setTitle("— 确入归卷 · 成功 —")
+                                        .setMessage("该清单已妥帖存入『往期卷宗』。\n是否清空当前画轴，以便重新勾勒新清单？")
+                                        .setCancelable(false)
+                                        .setPositiveButton("清空首页") { _, _ ->
+                                            clearCurrentOrder()
+                                        }
+                                        .setNegativeButton("保留查看", null)
+                                        .show()
+                                }
+                            } catch (dbError: Exception) {
+                                Log.e("DatabaseError", "本地存卷失败: ${dbError.message}")
+                            }
+                        }
                     } else {
-                        Toast.makeText(this@HomeActivity, "同步失败: ${response.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@HomeActivity, "同步失败: ${response.message}", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    // 这一句能告诉你到底是 404、JSON解析失败 还是 证书问题
                     Log.e("SyncError", "具体原因: ${e.message}")
-                    Toast.makeText(this@HomeActivity, "同步失败: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@HomeActivity, "网络同步失败: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -910,6 +969,18 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
 
+            // 在对话框的布局或按钮逻辑中增加
+            val btnHistory = com.google.android.material.button.MaterialButton(this@HomeActivity).apply {
+                text = "往期清单"
+                // 设置一个小图标更雅致
+                icon = androidx.core.content.ContextCompat.getDrawable(this@HomeActivity, android.R.drawable.ic_menu_recent_history)
+                setOnClickListener {
+                    val intent = Intent(this@HomeActivity, OrderHistoryActivity::class.java)
+                    startActivity(intent)
+                }
+            }
+// 将这个按钮 addView 到你的 Profile 布局中
+
             inviteSection.addView(btnQRCode)
             inviteSection.addView(tvCodeLabel)
             inviteSection.addView(tvCodeValue)
@@ -928,6 +999,7 @@ class HomeActivity : AppCompatActivity() {
             container.addView(tvNicknameLabel)
             container.addView(etNickname)
             container.addView(tvChangePassword) // 放在雅号下方
+            container.addView(btnHistory)
             container.addView(inviteSection)
             container.addView(vipDesc)
 
