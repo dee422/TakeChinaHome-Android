@@ -118,10 +118,16 @@ class HomeActivity : AppCompatActivity() {
         startBGM()
         tvEmptyHint = findViewById(R.id.tvEmptyHint)
 
-        // 2. 顶部“名帖/修订”点击事件 (原 btnRegisterIntent)
-        findViewById<View>(R.id.btnRegisterIntent).setOnClickListener {
-            // 建议改为显示名帖修改，或者保留你原本的 showWishFormDialog
+        // 2. 个人头像/昵称区域：点击后进入个人资料编辑（名帖）
+        findViewById<View>(R.id.userAvatarText).setOnClickListener {
             showProfileEditDialog()
+        }
+
+        // “登记名帖”按钮/文字：点击后应填写本次订单的联络人信息
+        // 修正：调用 showWishFormDialog，而不是 showProfileEditDialog
+        findViewById<View>(R.id.btnRegisterIntent).setOnClickListener {
+            // 这里的 adapter 是你在 onCreate 中初始化的 GiftAdapter 实例
+            adapter.showWishFormDialog(this)
         }
 
         // 3. 核心：右下角“生成清单”按钮逻辑
