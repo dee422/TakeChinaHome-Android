@@ -1,8 +1,15 @@
 package com.dee.android.pbl.takechinahome
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.os.Bundle
+import android.util.Log
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -12,54 +19,43 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Random
 
-/**
- * 往期卷轴页面：展示已确入归卷的历史清单
- */
 class OrderHistoryActivity : AppCompatActivity() {
 
     private lateinit var adapter: OrderHistoryAdapter
+    private val DEFAULT_MAX_WIDTH = 880f // 绘图文本换行宽度
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. 动态创建列表视图（宣纸底色视觉）
         val recyclerView = RecyclerView(this).apply {
-            layoutParams = RecyclerView.LayoutParams(
-                RecyclerView.LayoutParams.MATCH_PARENT,
-                RecyclerView.LayoutParams.MATCH_PARENT
-            )
-            setBackgroundColor(android.graphics.Color.parseColor("#F4EFE2")) // 延续宣纸色
+            layoutParams = RecyclerView.LayoutParams(-1, -1)
+            setBackgroundColor(Color.parseColor("#F4EFE2"))
             setPadding(32, 32, 32, 32)
             layoutManager = LinearLayoutManager(this@OrderHistoryActivity)
         }
         setContentView(recyclerView)
         supportActionBar?.title = "往期卷宗 · 溯源"
 
-        // 2. 初始化适配器，并定义点击“卷宗”条目时的反馈
         adapter = OrderHistoryAdapter(emptyList()) { order ->
-            showOrderDetail(order)
+            // 点击卷宗，不再弹文本框，直接弹“画卷图片”
+            renderHistoryImage(order)
         }
         recyclerView.adapter = adapter
 
-        // 3. 加载本地数据库中的历史数据
         loadHistoryData()
     }
 
-    /**
-     * 从本地 Room 数据库获取当前用户的历史记录
-     */
     private fun loadHistoryData() {
         lifecycleScope.launch(Dispatchers.IO) {
             val db = AppDatabase.getDatabase(this@OrderHistoryActivity)
-            // 获取当前登录用户，以便过滤属于该账户的卷宗
             val user = db.userDao().getCurrentUser()
             if (user != null) {
-                // 根据邮箱查询历史
                 val history = db.orderHistoryDao().getOrdersByUser(user.email)
                 withContext(Dispatchers.Main) {
                     if (history.isEmpty()) {
-                        Toast.makeText(this@OrderHistoryActivity, "卷宗空空，尚无确入记录", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@OrderHistoryActivity, "卷宗空空", Toast.LENGTH_SHORT).show()
                     }
                     adapter.updateData(history)
                 }
@@ -68,47 +64,147 @@ class OrderHistoryActivity : AppCompatActivity() {
     }
 
     /**
-     * 核心逻辑：解析 JSON 数据并展示详细的礼品清单
+     * 核心函数：将历史 JSON 还原为礼品对象，并绘制长卷
      */
-    private fun showOrderDetail(order: OrderHistory) {
-        try {
-            // 1. 将存储在数据库中的 JSON 字符串反序列化为 Map 列表
-            val type = object : TypeToken<List<Map<String, Any>>>() {}.type
-            val rawList: List<Map<String, Any>> = Gson().fromJson(order.detailsJson, type)
-
-            // 2. 拼接详情文本
-            val detailBuilder = StringBuilder()
-
-            // 顶部信息：溯源三要素
-            detailBuilder.append("【 归卷存证 】\n")
-            detailBuilder.append("确入时间：${order.submitTime}\n")
-            detailBuilder.append("账户归属：${order.userEmail}\n")
-            detailBuilder.append("当时雅号：${order.accountOwner}\n") // 下单瞬间的名字
-            detailBuilder.append("联络官名帖：${order.contactName}\n")
-            detailBuilder.append("————————————————\n\n")
-
-            // 礼品明细
-            rawList.forEachIndexed { index, map ->
-                detailBuilder.append("第 ${index + 1} 选：${map["name"]}\n")
-                detailBuilder.append("   规格：${map["spec"]}\n")
-                detailBuilder.append("   数量：${map["qty"]}\n")
-
-                val note = map["note"]?.toString()
-                if (!note.isNullOrBlank() && note != "无") {
-                    detailBuilder.append("   特别叮嘱：$note\n")
+    private fun renderHistoryImage(order: OrderHistory) {
+        lifecycleScope.launch {
+            try {
+                // 1. 数据还原：JSON -> List<Gift>
+                val type = object : TypeToken<List<Map<String, Any>>>() {}.type
+                val rawList: List<Map<String, Any>> = Gson().fromJson(order.detailsJson, type)
+                val historyGifts = rawList.map { map ->
+                    Gift(
+                        name = map["name"].toString(),
+                        spec = map["spec"].toString(),
+                        isSaved = true
+                    ).apply {
+                        customQuantity = map["qty"].toString()
+                        customNotes = map["note"].toString()
+                    }
                 }
-                detailBuilder.append("\n")
+
+                // 2. 准备画布参数
+                val width = 1080
+                val paint = Paint().apply { isAntiAlias = true }
+
+                // 计算动态高度
+                var totalHeight = 1100f
+                val giftHeights = mutableListOf<Float>()
+                historyGifts.forEach { gift ->
+                    paint.textSize = 38f
+                    val noteLines = splitTextIntoLines("特别叮嘱：${gift.customNotes}", DEFAULT_MAX_WIDTH, paint).size
+                    val h = 320f + (noteLines * 60f)
+                    giftHeights.add(h)
+                    totalHeight += h
+                }
+
+                // 3. 开始绘图
+                val bitmap = Bitmap.createBitmap(width, totalHeight.toInt(), Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                canvas.drawColor("#F4EFE2".toColorInt())
+
+                // 纸张纹理效果 (简化逻辑)
+                val random = Random()
+                paint.style = Paint.Style.STROKE
+                for (i in 0..200) {
+                    paint.color = Color.argb(random.nextInt(30) + 10, 120, 100, 80)
+                    val startX = random.nextFloat() * width
+                    val startY = random.nextFloat() * totalHeight
+                    canvas.drawLine(startX, startY, startX + random.nextFloat() * 50f, startY + random.nextFloat() * 50f, paint)
+                }
+
+                // 标题与身份信息
+                paint.style = Paint.Style.FILL
+                paint.textAlign = Paint.Align.CENTER
+                paint.color = Color.BLACK
+                paint.textSize = 80f
+                paint.isFakeBoldText = true
+                canvas.drawText("岁时礼序 · 往期卷宗", width / 2f, 180f, paint)
+
+                paint.textAlign = Paint.Align.LEFT
+                paint.textSize = 35f
+                paint.color = Color.GRAY
+                canvas.drawText("账户主 (雅号)：${order.accountOwner}", 130f, 320f, paint)
+
+                paint.textSize = 42f
+                paint.color = Color.BLACK
+                canvas.drawText("联络人：${order.contactName}", 130f, 385f, paint)
+                canvas.drawText("账户归属：${order.userEmail}", 130f, 445f, paint)
+
+                canvas.drawLine(100f, 520f, width - 100f, 520f, paint.apply { strokeWidth = 2f })
+
+                // 绘制历史礼品列表
+                var currentY = 620f
+                historyGifts.forEachIndexed { index, gift ->
+                    paint.textSize = 48f
+                    paint.isFakeBoldText = true
+                    canvas.drawText("${index + 1}. ${gift.name}", 100f, currentY, paint)
+
+                    paint.textSize = 38f
+                    paint.isFakeBoldText = false
+                    canvas.drawText("数量：${gift.customQuantity} | 规格：${gift.spec}", 130f, currentY + 70f, paint)
+
+                    var textY = currentY + 130f
+                    splitTextIntoLines("特别叮嘱：${gift.customNotes.ifEmpty { "随缘" }}", DEFAULT_MAX_WIDTH, paint).forEach {
+                        canvas.drawText(it, 130f, textY, paint)
+                        textY += 60f
+                    }
+                    currentY = textY + 40f
+                }
+
+                // 底部印章与日期
+                paint.textAlign = Paint.Align.RIGHT
+                canvas.drawText("确入日期：${order.submitTime}", width - 100f, totalHeight - 100f, paint)
+
+                // 4. 显示预览弹窗
+                showImagePreview(bitmap)
+
+            } catch (e: Exception) {
+                Log.e("RenderError", "绘图失败: ${e.message}")
+                Toast.makeText(this@OrderHistoryActivity, "画卷生成失败", Toast.LENGTH_SHORT).show()
             }
-
-            // 3. 弹出 Material 风格的详情对话框
-            MaterialAlertDialogBuilder(this)
-                .setTitle("— 卷宗明细 · ${order.contactName} —")
-                .setMessage(detailBuilder.toString())
-                .setPositiveButton("阅毕归卷", null)
-                .show()
-
-        } catch (e: Exception) {
-            Toast.makeText(this, "解析明细失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showImagePreview(bitmap: Bitmap) {
+        // 1. 创建滑动容器
+        val scrollView = android.widget.ScrollView(this).apply {
+            layoutParams = android.widget.FrameLayout.LayoutParams(-1, -2)
+        }
+
+        // 2. 创建并配置图片视图
+        val imageView = ImageView(this).apply {
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+            // 关键：保持宽度占满，高度按比例伸展
+            scaleType = ImageView.ScaleType.FIT_START
+            adjustViewBounds = true
+            setImageBitmap(bitmap)
+            // 增加一点边缘留白，更有画卷质感
+            setPadding(10, 10, 10, 10)
+        }
+
+        // 3. 组装并弹出
+        scrollView.addView(imageView)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("— 溯源画卷 · 详情 —")
+            .setView(scrollView) // 现在视图是可以滑动的了
+            .setPositiveButton("阅毕归卷", null)
+            .show()
+    }
+
+    // 辅助函数：处理长文本换行
+    private fun splitTextIntoLines(text: String, maxWidth: Float, paint: Paint): List<String> {
+        val lines = mutableListOf<String>()
+        var start = 0
+        while (start < text.length) {
+            val count = paint.breakText(text, start, text.length, true, maxWidth, null)
+            lines.add(text.substring(start, start + count))
+            start += count
+        }
+        return lines
     }
 }

@@ -243,24 +243,30 @@ class HomeActivity : AppCompatActivity() {
         shouldSave: Boolean = false,
         inputName: String? = null,
         inputContact: String? = null,
-        inputTime: String? = null
+        inputTime: String? = null,
+        historyGifts: List<Gift>? = null, // 新增
+        historyAccount: String? = null   // 新增
     ) {
-        val activeGifts = myGifts.filter { it.isSaved }
+        // 逻辑：如果是查看卷宗，则使用传入的列表；否则使用当前画轴
+        val activeGifts = historyGifts ?: myGifts.filter { it.isSaved }
+
         if (activeGifts.isEmpty()) {
-            Toast.makeText(this, "画轴空空，请先勾勒礼遇", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "清单空空，无从勾勒", Toast.LENGTH_SHORT).show()
             return
         }
 
         lifecycleScope.launch {
             val userPrefs = getSharedPreferences("UserPrefs", MODE_PRIVATE)
-            val accountOwner = currentUser?.account ?: "匿名官"
 
-            // 数据优先级决策：传参 > 存储 > 默认
+            // 账号主优先级：历史记录中的名字 > 当前登录名
+            val accountOwner = historyAccount ?: (currentUser?.account ?: "匿名官")
+
+            // 联络官信息同理
             val finalContactName = inputName ?: userPrefs.getString(KEY_CONTACT_NAME, null) ?: accountOwner
             val contact = inputContact ?: userPrefs.getString(KEY_CONTACT_PHONE, null) ?: "未留联系方式"
             val time = inputTime ?: userPrefs.getString(KEY_CONTACT_TIME, null) ?: "随时可叙"
 
-            // ... 保持后面的绘制代码不变 ...
+            // --- 以下 Canvas 绘图代码完全不用改 ---
             val width = 1080
             var totalHeight = 1100
             val paint = Paint().apply {
@@ -614,44 +620,57 @@ class HomeActivity : AppCompatActivity() {
     private fun showImagePreviewDialog(bitmap: Bitmap, contactName: String, activeGifts: List<Gift>) {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            // 关键：给整个容器设置 padding，让它看起来不那么局促
             setPadding(0, 0, 0, 20)
             setBackgroundColor("#FBF8EF".toColorInt())
         }
 
-        // 1. 图片预览（增加权重 1f）
+        // 1. 图片预览容器
         val scrollView = ScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+            // 保持权重 1f 占用剩余空间
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+            )
+            // 隐藏滑动条更显古风
+            isVerticalScrollBarEnabled = false
         }
+
         val imageView = ImageView(this).apply {
-            setImageBitmap(bitmap)
+            // 关键点 1：宽度撑满，高度自适应内容
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+            // 关键点 2：改为 FIT_START (从顶部开始绘制) 或 FIT_XY (配合 adjustViewBounds)
+            // 配合 adjustViewBounds = true，图片会按比例拉伸直到占满宽度
             adjustViewBounds = true
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.FIT_START
+
+            setImageBitmap(bitmap)
         }
+
         scrollView.addView(imageView)
         container.addView(scrollView)
 
-        // 2. 横排按钮栏
+        // 2. 按钮栏（保持原有逻辑，仅微调样式）
         val buttonLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(-1, -2)
             gravity = Gravity.CENTER
-            // 增加一点内边距，让按钮离屏幕边缘远一点
-            setPadding(40, 30, 40, 30)
+            setPadding(40, 20, 40, 10) // 缩减一点垂直边距
         }
 
         fun createStyledButton(txt: String, color: String) = com.google.android.material.button.MaterialButton(this).apply {
             text = txt
-            textSize = 13f
+            textSize = 14f // 稍微加大一点字号
             setTextColor(Color.WHITE)
             setBackgroundColor(color.toColorInt())
-            // 每个按钮权重为 1，平分布局
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
-                setMargins(10, 0, 10, 0)
+                setMargins(12, 0, 12, 0)
             }
-            cornerRadius = 10
+            cornerRadius = 12
             insetTop = 0
             insetBottom = 0
+            elevation = 4f // 增加一点阴影
         }
 
         val btnClear = createStyledButton("裁撤", "#757575")
@@ -666,12 +685,15 @@ class HomeActivity : AppCompatActivity() {
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("— 画卷预览 · 确入 —")
             .setView(container)
-            .show()
+            .setCancelable(true) // 允许点击外部取消以便修改
+            .create()
 
         // 按钮逻辑...
         btnClear.setOnClickListener { dialog.dismiss(); showClearConfirmDialog() }
         btnSave.setOnClickListener { saveBitmapToGallery(bitmap); dialog.dismiss() }
         btnUpload.setOnClickListener { uploadOrderToBackend(contactName, activeGifts); dialog.dismiss() }
+
+        dialog.show()
     }
 
     // 2. 确认弹窗函数
