@@ -51,6 +51,9 @@ class HomeActivity : AppCompatActivity() {
 
     companion object {
         private const val DEFAULT_MAX_WIDTH = 850
+        private const val KEY_CONTACT_NAME = "final_contact_name"
+        private const val KEY_CONTACT_PHONE = "final_contact_phone"
+        private const val KEY_CONTACT_TIME = "final_contact_time"
     }
 
     private var isMusicPlaying = true
@@ -118,16 +121,14 @@ class HomeActivity : AppCompatActivity() {
         startBGM()
         tvEmptyHint = findViewById(R.id.tvEmptyHint)
 
-        // 2. 个人头像/昵称区域：点击后进入个人资料编辑（名帖）
-        findViewById<View>(R.id.userAvatarText).setOnClickListener {
-            showProfileEditDialog()
-        }
+        // 2. 头像现在只做展示，不加点击事件，避免混淆
+        findViewById<View>(R.id.userAvatarText).setOnClickListener(null)
 
         // “登记名帖”按钮/文字：点击后应填写本次订单的联络人信息
         // 修正：调用 showWishFormDialog，而不是 showProfileEditDialog
         findViewById<View>(R.id.btnRegisterIntent).setOnClickListener {
             // 这里的 adapter 是你在 onCreate 中初始化的 GiftAdapter 实例
-            adapter.showWishFormDialog(this)
+            showWishFormDialog()
         }
 
         // 3. 核心：右下角“生成清单”按钮逻辑
@@ -246,22 +247,20 @@ class HomeActivity : AppCompatActivity() {
     ) {
         val activeGifts = myGifts.filter { it.isSaved }
         if (activeGifts.isEmpty()) {
-            Toast.makeText(this, "画卷空空，请先「确入画卷」添加礼品", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "画轴空空，请先勾勒礼遇", Toast.LENGTH_SHORT).show()
             return
         }
 
         lifecycleScope.launch {
-            // 这里不需要再声明 val currentUser，直接用全局的
             val userPrefs = getSharedPreferences("UserPrefs", MODE_PRIVATE)
-
-            // --- 核心修复：优先使用传入的参数，如果没有则用缓存 ---
             val accountOwner = currentUser?.account ?: "匿名官"
 
-            // 如果传入了 inputName 就用它，否则用缓存或雅号
-            val finalContactName = inputName ?: userPrefs.getString("saved_name", accountOwner) ?: accountOwner
-            val contact = inputContact ?: userPrefs.getString("saved_contact", "未留联系方式") ?: "未留联系方式"
-            val time = inputTime ?: userPrefs.getString("saved_comm_time", "随时可叙") ?: "随时可叙"
+            // 数据优先级决策：传参 > 存储 > 默认
+            val finalContactName = inputName ?: userPrefs.getString(KEY_CONTACT_NAME, null) ?: accountOwner
+            val contact = inputContact ?: userPrefs.getString(KEY_CONTACT_PHONE, null) ?: "未留联系方式"
+            val time = inputTime ?: userPrefs.getString(KEY_CONTACT_TIME, null) ?: "随时可叙"
 
+            // ... 保持后面的绘制代码不变 ...
             val width = 1080
             var totalHeight = 1100
             val paint = Paint().apply {
@@ -444,53 +443,55 @@ class HomeActivity : AppCompatActivity() {
     private fun showWishFormDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_wish_form, null)
         val etName = dialogView.findViewById<EditText>(R.id.etName)
-
-        // --- 修改部分：自动填充登记时的雅号 ---
-        val accountOwner = currentUser?.account ?: ""
-        if (accountOwner.isNotEmpty()) {
-            etName.setText(accountOwner)
-            // 可选：将光标移至文字末尾，方便用户修改
-            etName.setSelection(accountOwner.length)
-        } else {
-            // 如果没有获取到账号（例如本地缓存异常），则显示提示词
-            etName.hint = "请输入联络人姓名"
-        }
-
         val etContact = dialogView.findViewById<EditText>(R.id.etContact)
         val etCommTime = dialogView.findViewById<EditText>(R.id.etCommTime)
         val btnSubmit = dialogView.findViewById<Button>(R.id.btnSubmitWish)
 
+        // 统一存储文件
         val prefs = getSharedPreferences("UserPrefs", MODE_PRIVATE)
-        etName.setText(prefs.getString("saved_name", ""))
-        etContact.setText(prefs.getString("saved_contact", ""))
-        etCommTime.setText(prefs.getString("saved_comm_time", ""))
 
-        // 修改弹窗标题
+        // --- 回显逻辑：从常量 Key 读取 ---
+        val savedName = prefs.getString(KEY_CONTACT_NAME, "")
+        val savedPhone = prefs.getString(KEY_CONTACT_PHONE, "")
+        val savedTime = prefs.getString(KEY_CONTACT_TIME, "")
+
+        if (!savedName.isNullOrEmpty()) {
+            etName.setText(savedName)
+            etContact.setText(savedPhone)
+            etCommTime.setText(savedTime)
+        } else {
+            etName.setText(currentUser?.account ?: "") // 首次进入默认账号名
+            etCommTime.setText("随时可叙")
+        }
+
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("— 【投帖 · 联络官】  —") // 明确说明是下单联系人
+            .setTitle("— 登记 · 联络官 —")
             .setView(dialogView)
             .create()
-        btnSubmit.setOnClickListener {
-            val nameStr = etName.text.toString()
-            val contactStr = etContact.text.toString()
-            val timeStr = etCommTime.text.toString()
 
-            if (nameStr.isBlank() || contactStr.isBlank()) {
-                Toast.makeText(this, "请补全联络信息", Toast.LENGTH_SHORT).show()
+        btnSubmit.setOnClickListener {
+            val n = etName.text.toString().trim()
+            val p = etContact.text.toString().trim()
+            val t = etCommTime.text.toString().trim()
+
+            if (n.isEmpty() || p.isEmpty()) {
+                Toast.makeText(this, "请补全信息", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            prefs.edit {
-                putString("saved_name", nameStr)
-                putString("saved_contact", contactStr)
-                putString("saved_comm_time", timeStr)
+            // --- 同步写入：确保磁盘数据更新 ---
+            val isSuccess = prefs.edit().apply {
+                putString(KEY_CONTACT_NAME, n)
+                putString(KEY_CONTACT_PHONE, p)
+                putString(KEY_CONTACT_TIME, t)
+            }.commit()
+
+            if (isSuccess) {
+                // 立即刷新预览图，并将新录入的数据直接透传
+                generateOrderImage(false, n, p, t)
+                Toast.makeText(this, "名帖已锁定", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
             }
-
-            // --- 这里是关键：传参数给生成函数 ---
-            generateOrderImage(false, nameStr, contactStr, timeStr)
-
-            Toast.makeText(this, "名帖已登记", Toast.LENGTH_SHORT).show()
-            dialog.dismiss()
         }
         dialog.show()
     }
@@ -546,7 +547,7 @@ class HomeActivity : AppCompatActivity() {
             try {
                 val user = currentUser ?: return@launch
 
-                // 1. 序列化数据：确保字段名与你 PHP 中 bind_param 的顺序和逻辑匹配
+                // 1. 序列化数据
                 val orderDetailsJson = Gson().toJson(giftList.map {
                     mapOf(
                         "name" to it.name,
@@ -556,44 +557,39 @@ class HomeActivity : AppCompatActivity() {
                     )
                 })
 
-                // 2. 调用接口：注意参数名要和 ApiService 里的 @Field 标签完全一致
+                // 2. 云端同步
                 val response = RetrofitClient.instance.uploadOrderConfirm(
                     user_email = user.email,
                     contact_name = contactName,
                     order_details_json = orderDetailsJson
                 )
 
-                // ... 之前的 serialization 和 API 调用代码 ...
                 withContext(Dispatchers.Main) {
                     if (response.success) {
-                        // 1. 同步成功的轻提示
                         Toast.makeText(this@HomeActivity, "订单已同步至云端", Toast.LENGTH_SHORT).show()
 
-                        // 2. 准备本地搬家
                         val historyDao = AppDatabase.getDatabase(this@HomeActivity).orderHistoryDao()
-                        val timeFormatter = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
-                        val currentTime = timeFormatter.format(java.util.Date())
+                        val timeFormatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA)
+                        val currentTime = timeFormatter.format(Date())
 
-                        // 3. 在协程中处理本地数据库写入
+                        // 3. 本地存卷：同时存入账号主(user.account)和联络人(contactName)
                         lifecycleScope.launch(Dispatchers.IO) {
                             try {
                                 val historyEntry = OrderHistory(
                                     submitTime = currentTime,
-                                    contactName = contactName,
-                                    detailsJson = orderDetailsJson,
-                                    userEmail = user.email
+                                    userEmail = user.email,
+                                    accountOwner = user.account, // 账号主：当时的雅号
+                                    contactName = contactName,   // 联络官：填写的名帖
+                                    detailsJson = orderDetailsJson
                                 )
                                 historyDao.insertOrder(historyEntry)
 
                                 withContext(Dispatchers.Main) {
-                                    // 4. 最终交互：确认是否清空
                                     MaterialAlertDialogBuilder(this@HomeActivity)
                                         .setTitle("— 确入归卷 · 成功 —")
                                         .setMessage("该清单已妥帖存入『往期卷宗』。\n是否清空当前画轴，以便重新勾勒新清单？")
                                         .setCancelable(false)
-                                        .setPositiveButton("清空首页") { _, _ ->
-                                            clearCurrentOrder()
-                                        }
+                                        .setPositiveButton("清空首页") { _, _ -> clearCurrentOrder() }
                                         .setNegativeButton("保留查看", null)
                                         .show()
                                 }
@@ -607,8 +603,8 @@ class HomeActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Log.e("SyncError", "具体原因: ${e.message}")
-                    Toast.makeText(this@HomeActivity, "网络同步失败: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                    Log.e("SyncError", "原因: ${e.message}")
+                    Toast.makeText(this@HomeActivity, "网络同步失败", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -717,6 +713,13 @@ class HomeActivity : AppCompatActivity() {
                     if (response != null) {
                         myGifts.clear()
                         myGifts.addAll(response)
+
+                        // --- 注入测试代码：让新同步下来的第一项显示图标 ---
+                        if (myGifts.isNotEmpty()) {
+                            myGifts[0].isFriendShare = true
+                        }
+                        // -------------------------------------------
+
                         adapter.notifyDataSetChanged()
                     }
                 }
@@ -739,6 +742,13 @@ class HomeActivity : AppCompatActivity() {
             val type = object : TypeToken<MutableList<Gift>>() {}.type
             myGifts.clear()
             myGifts.addAll(gson.fromJson(json, type))
+
+            // --- 注入测试代码：让列表第一项显示图标 ---
+            if (myGifts.isNotEmpty()) {
+                myGifts[0].isFriendShare = true
+            }
+            // ------------------------------------
+
             adapter.notifyDataSetChanged()
         }
     }

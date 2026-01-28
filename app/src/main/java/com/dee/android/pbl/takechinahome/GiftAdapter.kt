@@ -7,6 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -16,13 +18,11 @@ import com.google.android.material.button.MaterialButton
 
 class GiftAdapter(
     private val giftList: List<Gift>,
-    // 更改为传递具体的数据对象和位置，方便 HomeActivity 处理
     private val onDeleteLongClick: (Gift, Int) -> Unit,
     private val onCustomClick: (Gift) -> Unit
 ) : RecyclerView.Adapter<GiftAdapter.GiftViewHolder>() {
 
     class GiftViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        // 这里的 ID 需要与你的 item_gift.xml 保持一致
         val imageArea: View? = view.findViewById(R.id.imageArea)
         val nameText: TextView = view.findViewById(R.id.giftNameText)
         val dateText: TextView = view.findViewById(R.id.giftDeadlineText)
@@ -30,6 +30,9 @@ class GiftAdapter(
         val descText: TextView = view.findViewById(R.id.giftDescText)
         val carouselRecycler: RecyclerView = view.findViewById(R.id.imageCarouselRecyclerView)
         val btnWish: MaterialButton = view.findViewById(R.id.btnWish)
+
+        // 新增：藏友分享标签的引用
+        val layoutShareTag: LinearLayout = view.findViewById(R.id.layoutShareTag)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GiftViewHolder {
@@ -42,37 +45,34 @@ class GiftAdapter(
     override fun onBindViewHolder(holder: GiftViewHolder, position: Int) {
         val gift = giftList[position]
 
-        // 1. 数据绑定：将 Gift 对象的属性填入视图
+        // --- 新增：藏友分享标签逻辑 ---
+        if (gift.isFriendShare) {
+            holder.layoutShareTag.visibility = View.VISIBLE
+            // 强制清除着色器，恢复图片原貌
+            val imageView = holder.itemView.findViewById<ImageView>(R.id.ivShareIcon)
+            imageView.imageTintList = null
+        } else {
+            holder.layoutShareTag.visibility = View.GONE
+        }
+
+        // 1. 数据绑定
         holder.nameText.text = gift.name
         holder.specText.text = "规格：${gift.spec}"
         holder.descText.text = gift.desc
         holder.dateText.text = "截止: ${gift.deadline}"
 
         // 2. 配置横向图片轮播
-        // --- 原代码 (第 52-55 行) ---
-        // holder.carouselRecycler.layoutManager =
-        //     LinearLayoutManager(holder.itemView.context, LinearLayoutManager.HORIZONTAL, false)
-        // holder.carouselRecycler.adapter = ImageAdapter(gift.images)
-
-
-        // --- 修改后的代码 ---
-        // 2. 配置横向图片轮播
         holder.carouselRecycler.layoutManager =
             LinearLayoutManager(holder.itemView.context, LinearLayoutManager.HORIZONTAL, false)
 
-        // 关键点：增加空判断逻辑。
-        // 如果 images 为空（说明是被 Room 忽略了或者是数据库数据），
-        // 我们需要确保不传递一个空列表给 ImageAdapter，或者给它一个占位图。
         if (gift.images.isNullOrEmpty()) {
-            // 方案 A：如果是数据库读取出的空数据，我们可以尝试手动恢复（如果你有缓存路径）
-            // 方案 B：或者先隐藏这个列表，避免显示空白白块
             holder.carouselRecycler.visibility = View.GONE
         } else {
             holder.carouselRecycler.visibility = View.VISIBLE
             holder.carouselRecycler.adapter = ImageAdapter(gift.images)
         }
 
-        // 3. 按钮状态：根据 isSaved 状态显示不同的文字和图标
+        // 3. 按钮状态
         if (gift.isSaved) {
             holder.btnWish.text = "已入画卷"
             holder.btnWish.setIconResource(R.drawable.ic_save)
@@ -81,16 +81,14 @@ class GiftAdapter(
             holder.btnWish.setIconResource(R.drawable.ic_heart)
         }
 
-        // 确入画卷按钮点击事件
         holder.btnWish.setOnClickListener {
             onCustomClick(gift)
         }
 
-        // 4. 核心改动：长按整个卡片触发删除对话框
-        // 删除了之前容易冲突的侧滑拦截逻辑，现在滑动完全交给图片轮播
+        // 4. 长按删除
         holder.itemView.setOnLongClickListener {
             onDeleteLongClick(gift, position)
-            true // 返回 true 表示我们消费了长按事件
+            true
         }
     }
 
@@ -105,12 +103,13 @@ class GiftAdapter(
         val etContact = view.findViewById<EditText>(R.id.etContact)
         val btnSubmit = view.findViewById<Button>(R.id.btnSubmitWish)
 
+        // 回显逻辑：明天我们再优化具体的 Key，现在先保持空
         btnSubmit.setOnClickListener {
             val contact = etContact.text.toString()
             if (contact.isBlank()) {
                 Toast.makeText(context, "请落笔联系方式", Toast.LENGTH_SHORT).show()
             } else {
-                // 具体保存逻辑已移动到 HomeActivity 中处理 UserPrefs
+                // 保存逻辑目前在 HomeActivity 处理
                 dialog.dismiss()
             }
         }

@@ -5,10 +5,10 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "order_history")
 data class OrderHistory(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
-    val submitTime: String,      // 提交时间，如 "2026-01-27 15:30"
-    val contactName: String,     // 当时填写的雅号/收件人
-    val detailsJson: String,     // 整个订单礼品列表转换成的 JSON 字符串
-    val userEmail: String        // 所属用户
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val submitTime: String,
+    val userEmail: String,      // 账号标识
+    val accountOwner: String,   // 账号主（当时的雅号）
+    val contactName: String,    // 联络人（当时登记的名帖）
+    val detailsJson: String
 )

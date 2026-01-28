@@ -34,7 +34,8 @@ data class Gift(
     var customQuantity: String = "1",
     var customDeliveryDate: String = "",
     var customNotes: String = "",
-    var isSaved: Boolean = false
+    var isSaved: Boolean = false,
+    var isFriendShare: Boolean = false
 ) : Serializable {
     // 必须保留一个给 Room 使用的构造函数（包含所有非 @Ignore 字段）
     constructor() : this(0, "", "", "", "", mutableListOf())

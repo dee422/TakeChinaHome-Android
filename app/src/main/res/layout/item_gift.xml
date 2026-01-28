@@ -63,18 +63,53 @@
                     android:textSize="12sp"
                     tools:text="截止: 02-12" />
 
-                <TextView
-                    android:id="@+id/giftNameText"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_toStartOf="@id/giftDeadlineText"
                     android:layout_marginEnd="8dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="#2C3E50"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    tools:text="非遗艺术品名称" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:id="@+id/layoutShareTag"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:background="#158B4513"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="1dp"
+                        android:visibility="gone"
+                        tools:visibility="visible">
+
+                        <ImageView
+                            android:id="@+id/ivShareIcon"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/ic_friend_share"
+                            android:scaleType="fitCenter"
+                             /> <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="2dp"
+                        android:text="藏友分享"
+                        android:textColor="#8B4513"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/giftNameText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="#2C3E50"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        tools:text="非遗艺术品名称" />
+                </LinearLayout>
             </RelativeLayout>
 
             <TextView
@@ -117,6 +152,5 @@
                     app:iconGravity="textStart"/>
             </RelativeLayout>
         </LinearLayout>
-
     </LinearLayout>
 </androidx.cardview.widget.CardView>
