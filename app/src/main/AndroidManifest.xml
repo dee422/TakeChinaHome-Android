@@ -56,6 +56,11 @@
             android:label="往期清单"
             android:theme="@style/Theme.TakeChinaHome" />
 
+        <activity
+            android:name=".AddItemActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
     </application>
 
 </manifest>

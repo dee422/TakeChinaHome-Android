@@ -1,25 +1,16 @@
 package com.dee.android.pbl.takechinahome
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.google.gson.annotations.SerializedName
 
-/**
- * 置换区藏品实体类
- * 用于存储 VIP 用户发布的置换信息
- */
-// ExchangeGift.kt 示例
-@Entity(tableName = "exchange_gifts")
+@Entity(tableName = "swap_items")
 data class ExchangeGift(
-    @PrimaryKey
-    var id: String = "", // 必须是 var，必须有默认值
-    var ownerName: String = "",
-    var title: String = "",
-    var story: String = "",
-    var want: String = "",
-    var contact: String = "",
-    var imageUrl: String = "",
-
-    // --- 新增：审核状态 ---
-    // 0: 本地草稿(仅自己可见), 1: 审核中, 2: 已公示(管理员确认), 3: 已下架
-    var status: Int = 0
+    @PrimaryKey val id: String,
+    @SerializedName("item_name") @ColumnInfo(name = "item_name") val title: String,
+    @SerializedName("description") @ColumnInfo(name = "description") val story: String,
+    @SerializedName("image_url") @ColumnInfo(name = "image_url") val imageUrl: String,
+    @SerializedName("owner_email") @ColumnInfo(name = "owner_email") val ownerEmail: String,
+    @SerializedName("status") @ColumnInfo(name = "status") var status: Int = 0 // 改为 var 方便更新状态
 )

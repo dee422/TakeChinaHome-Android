@@ -3,11 +3,11 @@ package com.dee.android.pbl.takechinahome
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
+// RetrofitClient.kt
 object RetrofitClient {
-    // 修正建议：确保这里的地址在浏览器能直接打开 gifts.json
     private const val BASE_URL = "https://ichessgeek.com/api/v1/"
 
-    val instance: ApiService by lazy {
+    val instance: ApiService by lazy { // 确保这里是 ApiService
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())

@@ -7,53 +7,42 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.dee.android.pbl.takechinahome.R
 
-// 修复点：增加 onItemClick 回调参数
 class ExchangeAdapter(
     private val items: List<ExchangeGift>,
     private val onItemClick: (ExchangeGift) -> Unit
 ) : RecyclerView.Adapter<ExchangeAdapter.ViewHolder>() {
 
-    init {
-        // 告知适配器每个项都有唯一 ID
-        setHasStableIds(true)
-    }
-
-    // 关键修复：使用实体类中的 UUID 的哈希值作为稳定 ID
-    override fun getItemId(position: Int): Long {
-        return items[position].id.hashCode().toLong()
-    }
-
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val ivCover: ImageView = view.findViewById(R.id.ivExchangeCover)
+        val ivItem: ImageView = view.findViewById(R.id.ivExchangeItem)
         val tvTitle: TextView = view.findViewById(R.id.tvExchangeTitle)
         val tvOwner: TextView = view.findViewById(R.id.tvExchangeOwner)
-        val tvWant: TextView = view.findViewById(R.id.tvExchangeWant)
+        val tvStatus: TextView = view.findViewById(R.id.tvExchangeStatus)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_exchange, parent, false)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_exchange, parent, false)
         return ViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
-
-        // 1. 立即重置文字，防止复用导致的错乱
         holder.tvTitle.text = item.title
-        holder.tvOwner.text = "持有人：${item.ownerName}"
-        holder.tvWant.text = "意向：${item.want}"
+        holder.tvOwner.text = "藏主: ${item.ownerEmail.split("@")[0]}" // 简化显示邮箱前缀
 
-        // 2. 关键修复：在加载新图前清除之前的图片，并显式处理空路径
-        Glide.with(holder.itemView.context).clear(holder.ivCover)
+        // 状态显示逻辑
+        holder.tvStatus.text = when(item.status) {
+            1 -> "待审核"
+            2 -> "已上架"
+            3 -> "已下架"
+            else -> "画卷中"
+        }
 
         Glide.with(holder.itemView.context)
             .load(item.imageUrl)
-            .placeholder(R.drawable.logo_main)
-            .diskCacheStrategy(DiskCacheStrategy.ALL) // 缓存全尺寸图片，加快刷新时的读取速度
-            .into(holder.ivCover)
+            .placeholder(android.R.drawable.ic_menu_gallery)
+            .into(holder.ivItem)
 
         holder.itemView.setOnClickListener { onItemClick(item) }
     }

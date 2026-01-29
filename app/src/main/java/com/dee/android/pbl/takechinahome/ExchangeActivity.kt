@@ -1,18 +1,15 @@
 package com.dee.android.pbl.takechinahome
 
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
@@ -26,26 +23,31 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
+/**
+ * 雅鉴置换市集 - 核心逻辑说明：
+ * 1. 检查当前用户的 VIP 身份（引荐人数 > 0）。
+ * 2. 从本地 Room 数据库和远程加载置换品列表。
+ * 3. 支持图片选取、本地私有目录保存及云端申请上传。
+ */
 class ExchangeActivity : AppCompatActivity() {
 
     private lateinit var rvExchange: RecyclerView
     private lateinit var tvVipHint: TextView
     private lateinit var fabUpload: FloatingActionButton
     private lateinit var adapter: ExchangeAdapter
-
     private val exchangeList = mutableListOf<ExchangeGift>()
+
+    // 图片上传相关
     private var ivPreview: ImageView? = null
     private var selectedImageUri: Uri? = null
 
-    // 相册启动器：增加 Uri 权限持久化，防止重启或刷新后图片变空白
+    // 图片选取启动器
     private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             try {
-                // 关键：获取长期的 Uri 读取权限
-                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                contentResolver.takePersistableUriPermission(it, takeFlags)
-            } catch (e: Exception) { e.printStackTrace() }
-
+                // 申请持久化权限（防止重启后无法读取）
+                contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) {}
             selectedImageUri = it
             ivPreview?.setImageURI(it)
             ivPreview?.visibility = View.VISIBLE
@@ -56,254 +58,197 @@ class ExchangeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_exchange)
 
-        // 绑定自定义 Toolbar
-        val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.toolbarExchange)
+        // 1. 设置 Toolbar
+        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbarExchange)
         setSupportActionBar(toolbar)
-
         supportActionBar?.apply {
             setDisplayHomeAsUpEnabled(true)
-            setHomeButtonEnabled(true)
             title = "雅鉴置换市集"
         }
 
+        // 2. 初始化视图
         rvExchange = findViewById(R.id.rvExchange)
         tvVipHint = findViewById(R.id.tvVipHint)
         fabUpload = findViewById(R.id.fabUpload)
 
+        // 使用瀑布流布局更显市集美感
         rvExchange.layoutManager = StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
 
+        // 3. 检查权限并加载数据
         checkVipStatusAndLoadData()
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        finish()
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
-            finish()
-            return true
-        }
-        return super.onOptionsItemSelected(item)
-    }
-
+    /**
+     * 检查当前用户是否有发布权限（VIP 逻辑）
+     */
     private fun checkVipStatusAndLoadData() {
         lifecycleScope.launch {
             val db = AppDatabase.getDatabase(this@ExchangeActivity)
-            val currentUser = db.userDao().getCurrentUser() ?: return@launch
+            val user = withContext(Dispatchers.IO) { db.userDao().getCurrentUser() }
 
-            val targetCount = 0
-            if (currentUser.referralCount >= targetCount) {
-                tvVipHint.text = "雅鉴 VIP：已开启置换分享权限"
-                tvVipHint.setTextColor(Color.parseColor("#4CAF50"))
-                fabUpload.isEnabled = true
-                fabUpload.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#8B4513"))
+            if (user != null && user.referralCount >= 0) {
+                tvVipHint.text = "雅鉴 VIP：已开启发布权限"
+                tvVipHint.setTextColor("#4CAF50".toColorInt())
                 fabUpload.setOnClickListener { showUploadDialog() }
             } else {
-                val diff = targetCount - currentUser.referralCount
-                tvVipHint.text = "再引荐 $diff 位好友即可升级 VIP"
-                tvVipHint.setTextColor(Color.parseColor("#8B4513"))
-                fabUpload.isEnabled = false
-                fabUpload.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#BDBDBD"))
+                tvVipHint.text = "当前身份：访客（邀请好友可开启发布）"
                 fabUpload.setOnClickListener {
-                    Toast.makeText(this@ExchangeActivity, "功德未满，暂无法刊登", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@ExchangeActivity, "引荐人数不足，暂无发布权", Toast.LENGTH_SHORT).show()
                 }
             }
             loadExchangeData()
         }
     }
 
+    /**
+     * 加载置换列表（先加载本地，再尝试同步云端）
+     */
     private fun loadExchangeData() {
         lifecycleScope.launch {
+            val db = AppDatabase.getDatabase(this@ExchangeActivity)
+
+            // 1. 先读本地数据库
+            val localData = withContext(Dispatchers.IO) { db.exchangeDao().getAllExchangeGifts() }
+            exchangeList.clear()
+            exchangeList.addAll(localData)
+
+            if (!::adapter.isInitialized) {
+                adapter = ExchangeAdapter(exchangeList) { item -> showDetailDialog(item) }
+                rvExchange.adapter = adapter
+            } else {
+                adapter.notifyDataSetChanged()
+            }
+
+            // 2. 尝试从网络同步（可选逻辑）
             try {
-                val db = AppDatabase.getDatabase(this@ExchangeActivity)
-                val data = db.exchangeDao().getAllExchangeGifts()
-
-                exchangeList.clear()
-                exchangeList.addAll(data)
-
-                // 解决最后一张图消失的关键：重置跨度分配
-                (rvExchange.layoutManager as? StaggeredGridLayoutManager)?.invalidateSpanAssignments()
-
-                val tvEmpty = findViewById<TextView>(R.id.tvEmptyState)
-                tvEmpty.visibility = if (exchangeList.isEmpty()) View.VISIBLE else View.GONE
-                rvExchange.visibility = if (exchangeList.isEmpty()) View.GONE else View.VISIBLE
-
-                if (!::adapter.isInitialized) {
-                    adapter = ExchangeAdapter(exchangeList) { item -> showDetailDialog(item) }
-                    rvExchange.adapter = adapter
-                } else {
+                val remoteData = withContext(Dispatchers.IO) { RetrofitClient.instance.getMarketGifts() }
+                if (remoteData.isNotEmpty()) {
+                    exchangeList.clear()
+                    exchangeList.addAll(remoteData)
                     adapter.notifyDataSetChanged()
                 }
-            } catch (e: Exception) { e.printStackTrace() }
+            } catch (e: Exception) {
+                Log.e("Exchange", "云端同步失败: ${e.message}")
+            }
         }
     }
 
+    /**
+     * 显示上传弹窗
+     */
     private fun showUploadDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_upload_exchange, null)
-        val etTitle = dialogView.findViewById<EditText>(R.id.etUploadTitle)
-        val etStory = dialogView.findViewById<EditText>(R.id.etUploadStory)
-        val etWant = dialogView.findViewById<EditText>(R.id.etUploadWant)
-        val etContact = dialogView.findViewById<EditText>(R.id.etUploadContact)
-        ivPreview = dialogView.findViewById(R.id.ivUploadPreview)
-        val btnAddImg = dialogView.findViewById<Button>(R.id.btnSelectImage)
+        val v = layoutInflater.inflate(R.layout.dialog_upload_exchange, null)
+        val etTitle = v.findViewById<EditText>(R.id.etUploadTitle)
+        val etStory = v.findViewById<EditText>(R.id.etUploadStory)
+        val btnSelect = v.findViewById<Button>(R.id.btnSelectImage)
+        ivPreview = v.findViewById(R.id.ivUploadPreview)
 
-        btnAddImg.setOnClickListener { pickImageLauncher.launch("image/*") }
+        btnSelect.setOnClickListener { pickImageLauncher.launch("image/*") }
 
         MaterialAlertDialogBuilder(this)
-            .setTitle("— 刊登雅鉴 —")
-            .setView(dialogView)
-            .setPositiveButton("发布") { _, _ ->
+            .setTitle("刊登雅鉴")
+            .setView(v)
+            .setPositiveButton("确认为发布") { _, _ ->
                 val title = etTitle.text.toString().trim()
+                val story = etStory.text.toString().trim()
                 if (title.isNotEmpty()) {
-                    saveExchangeItem(
-                        title,
-                        etStory.text.toString(),
-                        etWant.text.toString(),
-                        etContact.text.toString(),
-                        selectedImageUri
-                    )
+                    saveExchangeItem(title, story, selectedImageUri)
+                } else {
+                    Toast.makeText(this, "品名不可为空", Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("罢笔") { _, _ -> selectedImageUri = null }
+            .setNegativeButton("罢罢", null)
             .show()
     }
 
-    // 关键功能：将相册图片保存到 App 内部私有目录，确保路径永久有效
-    private suspend fun saveImageToInternal(uri: Uri): String = withContext(Dispatchers.IO) {
-        try {
-            val inputStream = contentResolver.openInputStream(uri)
-            val file = File(filesDir, "gift_${System.currentTimeMillis()}.jpg")
-            val outputStream = FileOutputStream(file)
-            inputStream?.use { input ->
-                outputStream.use { output ->
-                    input.copyTo(output)
-                }
+    /**
+     * 保存置换品：保存图片到私有目录 + 存入本地数据库 + 调用接口
+     */
+    private fun saveExchangeItem(title: String, story: String, uri: Uri?) {
+        lifecycleScope.launch {
+            val db = AppDatabase.getDatabase(this@ExchangeActivity)
+            val user = withContext(Dispatchers.IO) { db.userDao().getCurrentUser() }
+
+            // 1. 处理图片本地化保存
+            val localImagePath = uri?.let { saveImageToInternal(it) } ?: ""
+
+            // 2. 构建实体 (状态 1 表示待审核)
+            val newItem = ExchangeGift(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                story = story,
+                imageUrl = localImagePath,
+                ownerEmail = user?.email ?: "anonymous",
+                status = 1
+            )
+
+            // 3. 写入数据库
+            withContext(Dispatchers.IO) { db.exchangeDao().insert(newItem) }
+
+            // 4. 通知适配器
+            exchangeList.add(0, newItem)
+            adapter.notifyItemInserted(0)
+            rvExchange.scrollToPosition(0)
+
+            // 5. 提交服务器异步审核
+            try {
+                RetrofitClient.instance.applyExchangeReview(
+                    newItem.id,
+                    newItem.ownerEmail,
+                    newItem.title,
+                    newItem.story,
+                    null // imageData 后期可扩展上传
+                )
+            } catch (e: Exception) {
+                Log.e("Upload", "网络同步失败: ${e.message}")
             }
-            file.absolutePath
-        } catch (e: Exception) {
-            e.printStackTrace()
-            ""
         }
     }
 
+    /**
+     * 显示置换详情弹窗
+     */
     private fun showDetailDialog(item: ExchangeGift) {
-        val detailView = layoutInflater.inflate(R.layout.dialog_exchange_detail, null)
+        val v = layoutInflater.inflate(R.layout.dialog_exchange_detail, null)
+        val ivDetail = v.findViewById<ImageView>(R.id.ivDetailImage)
+        val tvTitle = v.findViewById<TextView>(R.id.tvDetailTitle)
+        val tvStory = v.findViewById<TextView>(R.id.tvDetailStory)
+        val tvContact = v.findViewById<TextView>(R.id.tvDetailContact)
 
-        // 绑定基础数据
-        detailView.findViewById<TextView>(R.id.tvDetailTitle).text = item.title
-        detailView.findViewById<TextView>(R.id.tvDetailStory).text = item.story
-        detailView.findViewById<TextView>(R.id.tvDetailWant).text = "愿易：${item.want}"
-        detailView.findViewById<TextView>(R.id.tvDetailContact).text = "暗号：${item.contact}"
+        tvTitle.text = item.title
+        tvStory.text = item.story
+        tvContact.text = "持有者雅号：${item.ownerEmail.split("@")[0]}"
 
-        // 加载图片
-        val ivDetail = detailView.findViewById<ImageView>(R.id.ivDetailImage)
         Glide.with(this)
             .load(item.imageUrl)
             .placeholder(android.R.drawable.ic_menu_gallery)
             .into(ivDetail)
 
-        // 构建对话框
-        val builder = MaterialAlertDialogBuilder(this)
-            .setTitle("藏品详情")
-            .setView(detailView)
-            .setPositiveButton("知晓了", null)
-
-        // --- 逻辑核心：状态机判定 ---
-        // status: 1 (审核中), 2 (已上架)
-        if (item.status == 1 || item.status == 2) {
-            builder.setNeutralButton("申请下架") { _, _ ->
-                performTakeDownRequest(item)
-            }
-        } else {
-            // status: 0 (草稿), 3 (已下架)
-            builder.setNeutralButton("彻底删除") { _, _ ->
-                confirmDelete(item.id)
-            }
-        }
-
-        builder.show()
-    }
-
-    private fun confirmDelete(giftId: String) {
         MaterialAlertDialogBuilder(this)
-            .setTitle("彻底抹除")
-            .setMessage("确定要将此物从画卷中永久涂抹吗？(此操作不可撤销)")
-            .setPositiveButton("确定") { _, _ ->
-                lifecycleScope.launch {
-                    val db = AppDatabase.getDatabase(this@ExchangeActivity)
-                    db.exchangeDao().deleteExchangeGift(giftId)
-                    loadExchangeData()
-                    Toast.makeText(this@ExchangeActivity, "已彻底删除", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton("留着", null)
+            .setView(v)
+            .setPositiveButton("敬悉", null)
             .show()
     }
 
-    /* 新增：向后台发起下架申请，成功后更新本地状态  */
-    private fun performTakeDownRequest(item: ExchangeGift) {
-        lifecycleScope.launch {
-            try {
-                // 1. 调用 ApiService 中的申请下架接口
-                val response = RetrofitClient.instance.requestTakeDown(item.id)
-
-                if (response.success) {
-                    // 2. 后端同步成功后，将本地状态改为 3 (已下架)
-                    val db = AppDatabase.getDatabase(this@ExchangeActivity)
-                    item.status = 3
-                    withContext(Dispatchers.IO) {
-                        db.exchangeDao().insertExchangeGift(item) // Room 的 insert 通常配置为 OnConflictStrategy.REPLACE
-                    }
-
-                    // 3. 刷新 UI
-                    loadExchangeData()
-                    Toast.makeText(this@ExchangeActivity, "下架申请已获准，此物已隐去", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this@ExchangeActivity, "下架失败：${response.message}", Toast.LENGTH_SHORT).show()
+    /**
+     * 辅助函数：将选取的 URI 图片复制到 App 私有目录
+     */
+    private suspend fun saveImageToInternal(uri: Uri): String = withContext(Dispatchers.IO) {
+        try {
+            val file = File(filesDir, "exchange_${System.currentTimeMillis()}.jpg")
+            contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(file).use { output ->
+                    input.copyTo(output)
                 }
-            } catch (e: Exception) {
-                android.util.Log.e("Exchange", "下架异常: ${e.message}")
-                Toast.makeText(this@ExchangeActivity, "云端信道拥塞，请稍后再试", Toast.LENGTH_SHORT).show()
             }
+            file.absolutePath
+        } catch (e: Exception) {
+            ""
         }
     }
 
-    private fun saveExchangeItem(title: String, story: String, want: String, contact: String, uri: Uri?) {
-        lifecycleScope.launch {
-            val db = AppDatabase.getDatabase(this@ExchangeActivity)
-            val currentUser = db.userDao().getCurrentUser()
-            val finalImagePath = uri?.let { saveImageToInternal(it) } ?: ""
-
-            val newItem = ExchangeGift(
-                id = UUID.randomUUID().toString(),
-                ownerName = currentUser?.account ?: "匿名雅士",
-                title = title,
-                story = story,
-                want = want,
-                contact = contact,
-                imageUrl = finalImagePath,
-                status = 1 // 直接设为 1：审核中
-            )
-
-            // 1. 存本地
-            db.exchangeDao().insertExchangeGift(newItem)
-
-            // 2. 发后台审核
-            try {
-                val response = RetrofitClient.instance.applyExchangeReview(
-                    newItem.id, newItem.ownerName, newItem.title,
-                    newItem.story, newItem.want, newItem.contact, ""
-                )
-                if (response.success) {
-                    Toast.makeText(this@ExchangeActivity, "已提交后台审核", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this@ExchangeActivity, "本地已保存，联网后自动同步审核", Toast.LENGTH_SHORT).show()
-            }
-
-            loadExchangeData()
-        }
+    override fun onSupportNavigateUp(): Boolean {
+        finish()
+        return true
     }
 }
