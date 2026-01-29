@@ -28,7 +28,7 @@ class AddItemActivity : AppCompatActivity() {
 
             if (title.isNotEmpty() && description.isNotEmpty()) {
                 val newGift = ExchangeGift(
-                    id = UUID.randomUUID().toString(), // 随机生成唯一ID
+                    id = 0,
                     title = title,
                     story = description,
                     imageUrl = "", // 这里暂时留空，之后可以接上传图片逻辑

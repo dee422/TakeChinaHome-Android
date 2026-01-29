@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 
 @Dao
 interface ExchangeDao {
@@ -20,4 +21,7 @@ interface ExchangeDao {
     // 3. 修正表名为 swap_items
     @Query("DELETE FROM swap_items WHERE id = :giftId")
     suspend fun deleteExchangeGift(giftId: String)
+
+    @Update
+    suspend fun update(gift: ExchangeGift)
 }

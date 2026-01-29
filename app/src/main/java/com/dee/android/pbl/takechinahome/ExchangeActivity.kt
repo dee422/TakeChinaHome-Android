@@ -1,13 +1,13 @@
 package com.dee.android.pbl.takechinahome
 
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
@@ -172,9 +172,10 @@ class ExchangeActivity : AppCompatActivity() {
             // 1. 处理图片本地化保存
             val localImagePath = uri?.let { saveImageToInternal(it) } ?: ""
 
-            // 2. 构建实体 (状态 1 表示待审核)
+            // 2. 构建实体
+            // 注意：因为数据库 id 是 int，这里 id 传 0，让 Room 自动生成数字 ID
             val newItem = ExchangeGift(
-                id = UUID.randomUUID().toString(),
+                id = 0,
                 title = title,
                 story = story,
                 imageUrl = localImagePath,
@@ -182,26 +183,8 @@ class ExchangeActivity : AppCompatActivity() {
                 status = 1
             )
 
-            // 3. 写入数据库
-            withContext(Dispatchers.IO) { db.exchangeDao().insert(newItem) }
-
-            // 4. 通知适配器
-            exchangeList.add(0, newItem)
-            adapter.notifyItemInserted(0)
-            rvExchange.scrollToPosition(0)
-
-            // 5. 提交服务器异步审核
-            try {
-                RetrofitClient.instance.applyExchangeReview(
-                    newItem.id,
-                    newItem.ownerEmail,
-                    newItem.title,
-                    newItem.story,
-                    null // imageData 后期可扩展上传
-                )
-            } catch (e: Exception) {
-                Log.e("Upload", "网络同步失败: ${e.message}")
-            }
+            // 3. 直接调用下面的通用同步函数，不再写重复的 try-catch
+            saveAndSyncExchange(newItem, null)
         }
     }
 
@@ -210,24 +193,123 @@ class ExchangeActivity : AppCompatActivity() {
      */
     private fun showDetailDialog(item: ExchangeGift) {
         val v = layoutInflater.inflate(R.layout.dialog_exchange_detail, null)
+        // 绑定视图
         val ivDetail = v.findViewById<ImageView>(R.id.ivDetailImage)
         val tvTitle = v.findViewById<TextView>(R.id.tvDetailTitle)
         val tvStory = v.findViewById<TextView>(R.id.tvDetailStory)
         val tvContact = v.findViewById<TextView>(R.id.tvDetailContact)
+        val btnAction = v.findViewById<Button>(R.id.btnAction) // 确保 XML 只剩一个此 ID
 
         tvTitle.text = item.title
         tvStory.text = item.story
-        tvContact.text = "持有者雅号：${item.ownerEmail.split("@")[0]}"
+        val ownerName = if (item.ownerEmail.contains("@")) item.ownerEmail.split("@")[0] else item.ownerEmail
+        tvContact.text = "持有者雅号：$ownerName"
 
-        Glide.with(this)
-            .load(item.imageUrl)
-            .placeholder(android.R.drawable.ic_menu_gallery)
-            .into(ivDetail)
+        Glide.with(this).load(item.imageUrl).placeholder(android.R.drawable.ic_menu_gallery).into(ivDetail)
 
-        MaterialAlertDialogBuilder(this)
-            .setView(v)
-            .setPositiveButton("敬悉", null)
-            .show()
+        val dialog = MaterialAlertDialogBuilder(this).setView(v).create()
+
+        lifecycleScope.launch {
+            val db = AppDatabase.getDatabase(this@ExchangeActivity)
+            val currentUser = withContext(Dispatchers.IO) { db.userDao().getCurrentUser() }
+            val currentUserEmail = currentUser?.email ?: ""
+
+            // 只有物主才能看到操作按钮
+            if (item.ownerEmail == currentUserEmail) {
+                btnAction.visibility = View.VISIBLE
+                when (item.status) {
+                    0, 1 -> { // 本地画卷/同步失败
+                        btnAction.text = "同步至云端"
+                        btnAction.setOnClickListener { saveAndSyncExchange(item, dialog) }
+                    }
+                    2 -> { // 已上架
+                        btnAction.text = "撤回物什（下架）"
+                        btnAction.setOnClickListener { performTakeDown(item, dialog) }
+                    }
+                    else -> btnAction.visibility = View.GONE
+                }
+            } else {
+                btnAction.visibility = View.GONE
+            }
+        }
+        dialog.show()
+    }
+
+    /**
+     * 下架逻辑处理
+     */
+    private fun performTakeDown(item: ExchangeGift, dialog: androidx.appcompat.app.AlertDialog) {
+        lifecycleScope.launch {
+            try {
+                // 注意：这里传了两个参数以匹配 PHP
+                val response = withContext(Dispatchers.IO) {
+                    RetrofitClient.instance.requestTakeDown(item.id, item.ownerEmail)
+                }
+
+                if (response.success) {
+                    Toast.makeText(this@ExchangeActivity, "物什已撤回仓库", Toast.LENGTH_SHORT).show()
+                    // 更新本地状态为已下架(3)
+                    withContext(Dispatchers.IO) {
+                        val db = AppDatabase.getDatabase(this@ExchangeActivity)
+                        item.status = 3
+                        db.exchangeDao().update(item)
+                    }
+                    refreshList() // 刷新 RecyclerView
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(this@ExchangeActivity, response.message, Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@ExchangeActivity, "连通云端失败", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun refreshList() {
+        lifecycleScope.launch {
+            val db = AppDatabase.getDatabase(this@ExchangeActivity)
+            // 从本地数据库获取最新列表
+            val newList = withContext(Dispatchers.IO) {
+                db.exchangeDao().getAllExchangeGifts()
+            }
+            // 更新适配器数据 (假设你的适配器叫 exchangeAdapter)
+            // 如果你的适配器有 setData 方法，就调用它；如果没有，就重新赋值并 notifyDataSetChanged
+            adapter.updateData(newList)
+        }
+    }
+
+    private fun saveAndSyncExchange(gift: ExchangeGift, dialog: AlertDialog? = null) {
+        lifecycleScope.launch {
+            try {
+                // 1. 本地保存
+                withContext(Dispatchers.IO) {
+                    AppDatabase.getDatabase(this@ExchangeActivity).exchangeDao().insert(gift)
+                }
+
+                // 2. 云端同步 - 这里的参数名必须严格对应 ApiService 接口定义
+                val response = withContext(Dispatchers.IO) {
+                    RetrofitClient.instance.applyExchangeReview(
+                        id = gift.id,           // 已经是 Int
+                        ownerEmail = gift.ownerEmail, // 改回 ownerEmail
+                        title = gift.title,
+                        story = gift.story
+                    )
+                }
+
+                if (response.success) {
+                    Toast.makeText(this@ExchangeActivity, "已同步至云端审核", Toast.LENGTH_SHORT).show()
+                    dialog?.dismiss()
+                    refreshList()
+                } else {
+                    Toast.makeText(this@ExchangeActivity, "本地已存，云端失败: ${response.message}", Toast.LENGTH_SHORT).show()
+                    dialog?.dismiss()
+                }
+            } catch (e: Exception) {
+                Log.e("SyncError", "具体原因: ${e.message}")
+                Toast.makeText(this@ExchangeActivity, "网络异常: ${e.message}", Toast.LENGTH_SHORT).show()
+                dialog?.dismiss()
+            }
+        }
     }
 
     /**
