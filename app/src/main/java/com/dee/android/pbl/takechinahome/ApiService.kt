@@ -41,15 +41,20 @@ interface ApiService {
         @Field("new_password") newPass: String
     ): ApiResponse
 
-    // 6. 提交/审核交换申请 (对应 exchange/apply_review.php)
+    /**
+     * 6. 提交/审核交换申请 (对应 exchange/apply_review.php)
+     * 已对齐最新的 PHP 字段：增加了联系暗号、置换意向
+     */
     @FormUrlEncoded
     @POST("exchange/apply_review.php")
     suspend fun applyExchangeReview(
-        @Field("id") id: Int,             // 必须为Int以匹配数据库
-        @Field("owner_email") ownerEmail: String, // 改回你原本习惯的 ownerEmail
-        @Field("item_name") title: String,        // 改回你原本习惯的 title
-        @Field("description") story: String,       // 改回你原本习惯的 story
-        @Field("image_data") imageData: String? = null
+        @Field("id") id: Int,
+        @Field("owner_email") ownerEmail: String,
+        @Field("item_name") title: String,
+        @Field("description") story: String,
+        @Field("contact_code") contactCode: String,    // 新增：联系暗号 (对应 PHP $contact_code)
+        @Field("exchange_wish") exchangeWish: String,  // 新增：置换意向 (对应 PHP $exchange_wish)
+        @Field("image_data") imageData: String? = null // Base64 图片数据
     ): ApiResponse
 
     // 7. 确认订单/同步云端 (对应 orders/confirm.php)
@@ -69,12 +74,12 @@ interface ApiService {
     @FormUrlEncoded
     @POST("take_down_item.php")
     suspend fun requestTakeDown(
-        @Field("item_id") id: Int,        // 改为 Int
+        @Field("item_id") id: Int,
         @Field("owner_email") email: String
     ): ApiResponse
 }
 
-// --- 在 ApiService 接口的花括号结束后添加 ---
+// --- 数据类保持不变 ---
 
 data class ApiResponse(
     val success: Boolean,

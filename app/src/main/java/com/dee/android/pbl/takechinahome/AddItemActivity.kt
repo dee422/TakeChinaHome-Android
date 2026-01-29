@@ -58,6 +58,8 @@ class AddItemActivity : AppCompatActivity() {
                         ownerEmail = gift.ownerEmail,
                         title = gift.title,
                         story = gift.story,
+                        contactCode = "未填写",
+                        exchangeWish = "面议",
                         imageData = null // 暂时没传图片
                     )
                 }
