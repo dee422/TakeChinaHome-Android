@@ -1,6 +1,9 @@
 package com.dee.android.pbl.takechinahome
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -22,6 +25,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 
 /**
  * 雅鉴置换市集 - 核心逻辑说明：
@@ -169,22 +175,26 @@ class ExchangeActivity : AppCompatActivity() {
             val db = AppDatabase.getDatabase(this@ExchangeActivity)
             val user = withContext(Dispatchers.IO) { db.userDao().getCurrentUser() }
 
-            // 1. 处理图片本地化保存
+            // 1. 处理图片本地化保存 (得到本地绝对路径)
             val localImagePath = uri?.let { saveImageToInternal(it) } ?: ""
 
-            // 2. 构建实体
-            // 注意：因为数据库 id 是 int，这里 id 传 0，让 Room 自动生成数字 ID
+            // 2. 构建新实体 (id=0 触发 Room 自增)
             val newItem = ExchangeGift(
                 id = 0,
                 title = title,
                 story = story,
                 imageUrl = localImagePath,
                 ownerEmail = user?.email ?: "anonymous",
-                status = 1
+                status = 0 // 初始状态为 0，代表仅本地
             )
 
-            // 3. 直接调用下面的通用同步函数，不再写重复的 try-catch
+            // 3. 此时调用同步函数，它会先存库获取真实 ID，再发网络请求
             saveAndSyncExchange(newItem, null)
+
+            // 4. UI 预反馈
+            exchangeList.add(0, newItem)
+            adapter.notifyItemInserted(0)
+            rvExchange.scrollToPosition(0)
         }
     }
 
@@ -281,34 +291,80 @@ class ExchangeActivity : AppCompatActivity() {
     private fun saveAndSyncExchange(gift: ExchangeGift, dialog: AlertDialog? = null) {
         lifecycleScope.launch {
             try {
-                // 1. 本地保存
+                // 1. 本地预存/更新（使用 OnConflictStrategy.REPLACE 确保不冲突）
                 withContext(Dispatchers.IO) {
                     AppDatabase.getDatabase(this@ExchangeActivity).exchangeDao().insert(gift)
                 }
 
-                // 2. 云端同步 - 这里的参数名必须严格对应 ApiService 接口定义
+                // 2. 准备图片数据 (如果是本地路径，转为 Base64)
+                val base64Data = if (gift.imageUrl.isNotEmpty() && !gift.imageUrl.startsWith("http")) {
+                    uriToBase64(Uri.fromFile(File(gift.imageUrl)))
+                } else null
+
+                // 3. 云端同步 - 必须严格对齐 ApiService 的 7 个参数
                 val response = withContext(Dispatchers.IO) {
                     RetrofitClient.instance.applyExchangeReview(
-                        id = gift.id,           // 已经是 Int
-                        ownerEmail = gift.ownerEmail, // 改回 ownerEmail
+                        id = gift.id,
+                        ownerEmail = gift.ownerEmail,
                         title = gift.title,
-                        story = gift.story
+                        story = gift.story,
+                        contactCode = "待补充", // 建议在实体类增加此字段，目前传占位符
+                        exchangeWish = "面议", // 建议在实体类增加此字段，目前传占位符
+                        imageData = base64Data
                     )
                 }
 
                 if (response.success) {
+                    // 4. 重要：同步成功后更新本地状态为 1 (审核中)
+                    withContext(Dispatchers.IO) {
+                        gift.status = 1
+                        AppDatabase.getDatabase(this@ExchangeActivity).exchangeDao().update(gift)
+                    }
                     Toast.makeText(this@ExchangeActivity, "已同步至云端审核", Toast.LENGTH_SHORT).show()
                     dialog?.dismiss()
-                    refreshList()
+                    refreshList() // 刷新列表，按钮会根据 status 改变
                 } else {
-                    Toast.makeText(this@ExchangeActivity, "本地已存，云端失败: ${response.message}", Toast.LENGTH_SHORT).show()
-                    dialog?.dismiss()
+                    Toast.makeText(this@ExchangeActivity, "同步失败: ${response.message}", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Log.e("SyncError", "具体原因: ${e.message}")
-                Toast.makeText(this@ExchangeActivity, "网络异常: ${e.message}", Toast.LENGTH_SHORT).show()
-                dialog?.dismiss()
+                Log.e("SyncError", "原因: ${e.message}")
+                Toast.makeText(this@ExchangeActivity, "网络异常", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun uriToBase64(uri: Uri): String? {
+        return try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            // --- 核心改动：缩放图片尺寸 ---
+            val maxSide = 1024 // 最大边长
+            val scale = if (originalBitmap.width > originalBitmap.height) {
+                maxSide.toFloat() / originalBitmap.width
+            } else {
+                maxSide.toFloat() / originalBitmap.height
+            }
+
+            val matrix = Matrix().apply { postScale(scale, scale) }
+            val resizedBitmap = Bitmap.createBitmap(
+                originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true
+            )
+            // --------------------------
+
+            val outputStream = ByteArrayOutputStream()
+            resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+            val bytes = outputStream.toByteArray()
+
+            // 释放内存
+            originalBitmap.recycle()
+            resizedBitmap.recycle()
+
+            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.e("Base64Error", "转换失败: ${e.message}")
+            null
         }
     }
 
