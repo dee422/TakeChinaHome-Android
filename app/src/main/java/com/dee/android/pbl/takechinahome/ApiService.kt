@@ -45,10 +45,10 @@ interface ApiService {
     @FormUrlEncoded
     @POST("exchange/apply_review.php")
     suspend fun applyExchangeReview(
-        @Field("id") id: String,
-        @Field("owner_email") ownerEmail: String,
-        @Field("item_name") title: String,
-        @Field("description") story: String,
+        @Field("id") id: Int,             // 必须为Int以匹配数据库
+        @Field("owner_email") ownerEmail: String, // 改回你原本习惯的 ownerEmail
+        @Field("item_name") title: String,        // 改回你原本习惯的 title
+        @Field("description") story: String,       // 改回你原本习惯的 story
         @Field("image_data") imageData: String? = null
     ): ApiResponse
 
@@ -68,7 +68,10 @@ interface ApiService {
     // 9. 下架礼品 (对应 take_down_item.php)
     @FormUrlEncoded
     @POST("take_down_item.php")
-    suspend fun requestTakeDown(@Field("id") itemId: String): ApiResponse
+    suspend fun requestTakeDown(
+        @Field("item_id") id: Int,        // 改为 Int
+        @Field("owner_email") email: String
+    ): ApiResponse
 }
 
 // --- 在 ApiService 接口的花括号结束后添加 ---

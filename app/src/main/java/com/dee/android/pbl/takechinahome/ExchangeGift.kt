@@ -7,10 +7,11 @@ import com.google.gson.annotations.SerializedName
 
 @Entity(tableName = "swap_items")
 data class ExchangeGift(
-    @PrimaryKey val id: String,
-    @SerializedName("item_name") @ColumnInfo(name = "item_name") val title: String,
-    @SerializedName("description") @ColumnInfo(name = "description") val story: String,
-    @SerializedName("image_url") @ColumnInfo(name = "image_url") val imageUrl: String,
-    @SerializedName("owner_email") @ColumnInfo(name = "owner_email") val ownerEmail: String,
-    @SerializedName("status") @ColumnInfo(name = "status") var status: Int = 0 // 改为 var 方便更新状态
+    @PrimaryKey(autoGenerate = true) // 设为自增，匹配数据库 int 类型
+    val id: Int = 0,
+    val title: String,
+    val story: String,
+    val imageUrl: String,
+    val ownerEmail: String,
+    var status: Int = 0
 )

@@ -83,5 +83,14 @@
             android:textSize="14sp" />
     </LinearLayout>
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnAction"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="同步或下架"
+        android:visibility="visible"
+        app:backgroundTint="#8B4513" />
+
 </LinearLayout>
 </ScrollView>

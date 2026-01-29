@@ -61,7 +61,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:contentDescription="发布置换"
-            app:backgroundTint="#BDBDBD"
+            app:backgroundTint="#A52A2A"
             app:elevation="6dp"
             app:srcCompat="@android:drawable/ic_input_add"
             app:tint="@android:color/white" />
