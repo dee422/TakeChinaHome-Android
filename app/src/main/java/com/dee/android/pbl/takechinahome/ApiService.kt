@@ -1,26 +1,20 @@
 package com.dee.android.pbl.takechinahome
 
 import retrofit2.Response
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.Field
-import retrofit2.http.FormUrlEncoded
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.Path
+import retrofit2.http.*
 
 interface ApiService {
 
-    // 1. 获取岁时礼清单
+    // 1. 获取岁时礼清单 (对应 gifts.json)
     @GET("gifts.json")
     suspend fun getGifts(): List<Gift>
 
-    // 2. 删除特定礼品
-    @DELETE("gifts/{id}")
-    suspend fun deleteGift(@Path("id") id: Int): Response<Unit>
+    // 2. 删除特定礼品 (对应 delete_gift.php)
+    @FormUrlEncoded
+    @POST("delete_gift.php")
+    suspend fun deleteGift(@Field("id") id: Int): Response<Unit>
 
-    // 3. 名帖登记 (注册)
-    // 改为 FormUrlEncoded 保持与 PHP $_POST 接收逻辑一致
+    // 3. 用户注册 (对应 register.php)
     @FormUrlEncoded
     @POST("register.php")
     suspend fun register(
@@ -30,7 +24,7 @@ interface ApiService {
         @Field("from_invite_code") fromCode: String
     ): ApiResponse
 
-    // 4. 归雁寻踪 (登录)
+    // 4. 用户登录 (对应 login.php)
     @FormUrlEncoded
     @POST("login.php")
     suspend fun login(
@@ -38,7 +32,7 @@ interface ApiService {
         @Field("password") pass: String
     ): LoginResponse
 
-    // 5. 修订密信 (修改密码)
+    // 5. 修改密码 (对应 update_password.php)
     @FormUrlEncoded
     @POST("update_password.php")
     suspend fun updatePassword(
@@ -47,55 +41,46 @@ interface ApiService {
         @Field("new_password") newPass: String
     ): ApiResponse
 
-    // 6. 置换市场相关
-    @POST("exchange/submit")
-    suspend fun submitExchange(@Body gift: Gift): ApiResponse
-
-    @GET("exchange/market.json")
-    suspend fun getMarketGifts(): List<Gift>
-
-    // 6. 提交置换品申请审核 (使用 FormUrlEncoded 方便 PHP 处理)
+    // 6. 提交/审核交换申请 (对应 exchange/apply_review.php)
     @FormUrlEncoded
     @POST("exchange/apply_review.php")
     suspend fun applyExchangeReview(
         @Field("id") id: String,
-        @Field("owner") owner: String,
-        @Field("title") title: String,
-        @Field("story") story: String,
-        @Field("want") want: String,
-        @Field("contact") contact: String,
-        @Field("image_data") imageData: String? = null // 可传 Base64 或图片链接
+        @Field("owner_email") ownerEmail: String,
+        @Field("item_name") title: String,
+        @Field("description") story: String,
+        @Field("image_data") imageData: String? = null
     ): ApiResponse
 
-    // 7. 确认订单上传 (将生成的订单元数据发至后台)
+    // 7. 确认订单/同步云端 (对应 orders/confirm.php)
     @FormUrlEncoded
-    @POST("orders/confirm.php") // 确保路径与服务器一致
+    @POST("orders/confirm.php")
     suspend fun uploadOrderConfirm(
-        @Field("user_email") user_email: String,
-        @Field("contact_name") contact_name: String,
-        @Field("order_details_json") order_details_json: String
+        @Field("user_email") userEmail: String,
+        @Field("contact_name") contactName: String,
+        @Field("order_details_json") json: String
     ): ApiResponse
 
-    // 8. 申请下架
+    // 8. 获取市场交换列表 (对应 exchange/get_market.php)
+    @GET("exchange/get_market.php")
+    suspend fun getMarketGifts(): List<ExchangeGift>
+
+    // 9. 下架礼品 (对应 take_down_item.php)
     @FormUrlEncoded
-    @POST("exchange/take_down.php")
+    @POST("take_down_item.php")
     suspend fun requestTakeDown(@Field("id") itemId: String): ApiResponse
 }
 
-/**
- * 通用响应类：用于处理注册、修改密码等简单操作的回调
- */
+// --- 在 ApiService 接口的花括号结束后添加 ---
+
 data class ApiResponse(
     val success: Boolean,
     val message: String
 )
 
-/**
- * 登录专属响应类：包含用户雅号和引荐码
- */
 data class LoginResponse(
-    val status: String,    // 与 PHP 返回的 "success" 或 "error" 对应
+    val status: String,
     val message: String,
-    val account: String?,  // 雅号
-    val invite_code: String? // 用户自己的引荐码
+    val account: String?,
+    val invite_code: String?
 )

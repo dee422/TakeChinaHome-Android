@@ -563,11 +563,11 @@ class HomeActivity : AppCompatActivity() {
                     )
                 })
 
-                // 2. 云端同步
+                // 2. 云端同步 - 修改具名参数以匹配 ApiService 中的定义
                 val response = RetrofitClient.instance.uploadOrderConfirm(
-                    user_email = user.email,
-                    contact_name = contactName,
-                    order_details_json = orderDetailsJson
+                    userEmail = user.email,        // 去掉下划线，改用 userEmail
+                    contactName = contactName,     // 去掉下划线，改用 contactName
+                    json = orderDetailsJson        // 注意：你的 ApiService 里的参数名是 json
                 )
 
                 withContext(Dispatchers.Main) {
