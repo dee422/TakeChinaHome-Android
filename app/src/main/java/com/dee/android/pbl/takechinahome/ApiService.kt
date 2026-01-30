@@ -70,12 +70,28 @@ interface ApiService {
     @GET("exchange/get_market.php")
     suspend fun getMarketGifts(): List<ExchangeGift>
 
-    // 9. 下架礼品
+    // 9. 下架置换品
     @FormUrlEncoded
     @POST("take_down_item.php")
     suspend fun requestTakeDown(
-        @Field("item_id") id: Int,
-        @Field("owner_email") owner_email: String
+        @Field("id") id: Int,
+        @Field("owner_email") ownerEmail: String
+    ): ApiResponse
+
+    // 10. 删除置换品
+    @FormUrlEncoded
+    @POST("delete_exchange_item.php")
+    suspend fun deleteExchangeItem(
+        @Field("id") id: Int,
+        @Field("owner_email") ownerEmail: String
+    ): ApiResponse
+
+    // 11. 重新上架
+    @FormUrlEncoded
+    @POST("relist_item.php")
+    suspend fun relistItem(
+        @Field("id") id: Int,
+        @Field("owner_email") ownerEmail: String
     ): ApiResponse
 }
 

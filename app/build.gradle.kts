@@ -79,4 +79,6 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     implementation("com.google.zxing:core:3.5.3") // 用于生成二维码矩阵
+
+    implementation("com.github.chrisbanes:PhotoView:2.3.0")
 }

@@ -24,11 +24,12 @@
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/imageCarouselRecyclerView"
                 android:layout_width="match_parent"
-                android:layout_height="140dp"
+                android:layout_height="wrap_content"
                 android:clipToPadding="false"
                 android:paddingHorizontal="4dp"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp"
+                android:minHeight="140dp"
                 tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
                 tools:orientation="horizontal" />
         </FrameLayout>
@@ -154,14 +155,15 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
-                    android:text="确入画卷"  android:textColor="#8B4513"
+                    android:text="确入画卷"
+                    android:textColor="#8B4513"
                     android:textSize="14sp"
                     app:strokeColor="#8B4513"
                     app:cornerRadius="20dp"
                     app:icon="@drawable/ic_heart"
                     app:iconTint="#8B4513"
                     app:iconGravity="textStart"
-                    contentDescription="添加到清单" />
+                    android:contentDescription="添加到清单" />
             </RelativeLayout>
         </LinearLayout>
     </LinearLayout>
