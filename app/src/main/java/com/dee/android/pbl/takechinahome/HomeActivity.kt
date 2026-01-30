@@ -719,6 +719,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // 将原有的 loadGiftsFromServer 和 refreshGifts 逻辑合并至此
+    // 2. 修改加载逻辑：解决图片拼接与重复问题
     private fun loadAllGiftsFromServer(swipe: SwipeRefreshLayout? = null) {
         swipe?.isRefreshing = true
 
@@ -727,58 +728,52 @@ class HomeActivity : AppCompatActivity() {
                 val officialDeferred = async(Dispatchers.IO) { RetrofitClient.instance.getGifts() }
                 val marketDeferred = async(Dispatchers.IO) { RetrofitClient.instance.getMarketGifts() }
 
-                // 使用 try-catch 保护，防止其中一个接口挂了带崩整个 App
                 val officialResponse = try { officialDeferred.await() } catch (e: Exception) { null }
-                val marketResponse = try { marketDeferred.await() } catch (e: Exception) {
-                    Log.e("API_ERROR", "市场接口故障: ${e.message}")
-                    null
-                }
+                val marketResponse = try { marketDeferred.await() } catch (e: Exception) { null }
 
                 withContext(Dispatchers.Main) {
-                    val combinedList = mutableListOf<Gift>()
+                    val combinedMap = mutableMapOf<Int, Gift>()
 
-                    // 【补漏】步骤 2：先装入官方数据 (officialResponse)
-                    officialResponse?.let {
-                        combinedList.addAll(it)
-                        Log.d("SyncDebug", "成功装入官方数据: ${it.size} 件")
+                    // 优先加载官方数据
+                    officialResponse?.forEach { gift ->
+                        combinedMap[gift.id] = gift
                     }
 
-                    // 步骤 3：装入已过审的置换数据
-                    // 显式指定 List<ExchangeGift> 类型，解决所有 "Cannot infer type" 报错
-                    val marketList = marketResponse as? List<ExchangeGift>
+                    // 加载置换市集数据（status=2 覆盖原数据实现去重替换）
+                    marketResponse?.filter { it.status == 2 }?.forEach { item ->
+                        val gift = Gift(
+                            id = item.id,
+                            name = item.itemName ?: "无名藏品",
+                            spec = item.description ?: "暂无描述",
+                            isFriendShare = true
+                        ).apply {
+                            // 【核心修正】图片地址拼接逻辑
+                            this.imageUrl = item.imageUrl ?: ""
 
-                    marketList?.let { list ->
-                        val sharedGifts = list.filter { it.status == 2 }.map { item ->
-                            Gift(
-                                id = item.id,
-                                name = item.itemName ?: "无名藏品", // 修正：使用 itemName
-                                spec = item.description ?: "暂无描述", // 修正：使用 description
-                                isFriendShare = true
-                            ).apply {
-                                // 必须手动传递图片地址，否则界面会没有图
-                                this.imageUrl = item.imageUrl ?: ""
-                            }
+                            // 2. 传递意向标签
+                            this.exchangeWish = item.exchangeWish
                         }
-                        combinedList.addAll(sharedGifts)
-                        Log.d("SyncDebug", "成功装入市集数据: ${sharedGifts.size} 件")
+                        // 以 ID 为 Key 放入 Map，如果 ID 重复，市集数据会替换旧数据
+                        combinedMap[item.id] = gift
                     }
 
-                    // 步骤 4：统一更新 UI
+                    // 更新 UI 列表
                     myGifts.clear()
-                    myGifts.addAll(combinedList)
+                    myGifts.addAll(combinedMap.values)
                     adapter.notifyDataSetChanged()
 
                     cacheGiftsLocally()
-                    updateEmptyView() // 别忘了更新“空空如也”的提示
+                    updateEmptyView()
+
+                    if (swipe != null) {
+                        Toast.makeText(this@HomeActivity, "云端卷宗同步完毕", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("HomeActivity", "加载失败: ${e.message}")
-                if (swipe != null) Toast.makeText(this@HomeActivity, "云端卷宗暂不可寻，请稍后再试", Toast.LENGTH_SHORT).show()
+                Log.e("SyncError", "原因: ${e.message}")
+                if (swipe != null) Toast.makeText(this@HomeActivity, "同步受阻，请检查网络", Toast.LENGTH_SHORT).show()
             } finally {
-                withContext(Dispatchers.Main) {
-                    swipe?.isRefreshing = false
-                    updateEmptyView()
-                }
+                swipe?.isRefreshing = false
             }
         }
     }
@@ -797,9 +792,20 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    // 1. 修改刷新触发逻辑：增加弹窗确认
     private fun refreshGifts(swipe: SwipeRefreshLayout) {
-        // 逻辑内容保持之前给你的弹窗版本即可
-        loadAllGiftsFromServer(swipe)
+        // 立即停止刷新动画，等待弹窗确认
+        swipe.isRefreshing = false
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("— 卷宗同步 · 确认 —")
+            .setMessage("是否连接云端，同步最新的岁时礼遇与市集置换？")
+            .setPositiveButton("确入同步") { _, _ ->
+                // 用户确认后，带上 swipe 触发加载
+                loadAllGiftsFromServer(swipe)
+            }
+            .setNegativeButton("暂缓", null)
+            .show()
     }
 
     private fun cacheGiftsLocally() {

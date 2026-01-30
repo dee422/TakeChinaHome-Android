@@ -101,23 +101,4 @@ class GiftAdapter(
     }
 
     override fun getItemCount() = giftList.size
-
-    fun showWishFormDialog(context: Context) {
-        val dialog = BottomSheetDialog(context)
-        val view = LayoutInflater.from(context).inflate(R.layout.dialog_wish_form, null)
-        dialog.setContentView(view)
-
-        val etContact = view.findViewById<EditText>(R.id.etContact)
-        val btnSubmit = view.findViewById<Button>(R.id.btnSubmitWish)
-
-        btnSubmit.setOnClickListener {
-            val contact = etContact.text.toString()
-            if (contact.isBlank()) {
-                Toast.makeText(context, "请落笔联系方式", Toast.LENGTH_SHORT).show()
-            } else {
-                dialog.dismiss()
-            }
-        }
-        dialog.show()
-    }
 }
