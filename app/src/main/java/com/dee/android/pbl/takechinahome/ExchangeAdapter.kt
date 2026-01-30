@@ -1,17 +1,21 @@
 package com.dee.android.pbl.takechinahome
 
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import java.io.File
 
 class ExchangeAdapter(
     private var items: List<ExchangeGift>,
-    private val onItemClick: (ExchangeGift) -> Unit
+    private val currentUserEmail: String, // 用于权限判断
+    private val onItemClick: (ExchangeGift) -> Unit,
+    private val onItemLongClick: (ExchangeGift) -> Unit // 长按回调
 ) : RecyclerView.Adapter<ExchangeAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -19,7 +23,6 @@ class ExchangeAdapter(
         val tvTitle: TextView = view.findViewById(R.id.tvExchangeTitle)
         val tvOwner: TextView = view.findViewById(R.id.tvExchangeOwner)
         val tvStatus: TextView = view.findViewById(R.id.tvExchangeStatus)
-        // 对应 XML 中的置换意向文本框
         val tvWant: TextView? = view.findViewById(R.id.tvExchangeWant)
     }
 
@@ -36,13 +39,12 @@ class ExchangeAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
 
-        // 1. 【核心修正】基础文字信息绑定：使用 itemName 替换 title
-        holder.tvTitle.text = item.itemName
-
+        // 1. 文字信息填充
+        holder.tvTitle.text = item.itemName ?: "未命名"
         val displayOwner = if (item.ownerEmail.contains("@")) item.ownerEmail.split("@")[0] else item.ownerEmail
         holder.tvOwner.text = "藏主: $displayOwner"
 
-        // 2. 状态映射 (规格第8项)
+        // 2. 状态逻辑：1审核中，2已上架，3已下架，4处理中
         holder.tvStatus.text = when(item.status) {
             1 -> "待审核"
             2 -> "已上架"
@@ -51,23 +53,15 @@ class ExchangeAdapter(
             else -> "未知"
         }
 
-        // 3. 置换意向映射 (规格第5项)
-        // 逻辑：1对应置换，2对应售卖
+        // 3. 意向逻辑：1置换，2售卖
         holder.tvWant?.text = if (item.exchangeWish == 2) "意向: 售卖" else "意向: 置换"
 
-        // 4. 健壮的图片加载逻辑
+        // 4. 图片加载路径逻辑 (对齐你的数据库和本地存储逻辑)
         val rawUrl = item.imageUrl ?: ""
         val loadTarget: Any = when {
-            // 情况A：已经是完整的网络URL
             rawUrl.startsWith("http") -> rawUrl
-
-            // 情况B：是手机本地路径（针对刚拍摄/选取的图片）
             rawUrl.startsWith("/") -> File(rawUrl)
-
-            // 情况C：只是一个文件名（来自云端同步，拼接到标准 uploads 路径）
             rawUrl.isNotEmpty() -> "https://www.ichessgeek.com/takechinahome/uploads/$rawUrl"
-
-            // 情况D：路径为空
             else -> android.R.drawable.ic_menu_gallery
         }
 
@@ -77,8 +71,21 @@ class ExchangeAdapter(
             .error(android.R.drawable.ic_dialog_alert)
             .into(holder.ivItem)
 
-        // 5. 点击事件：跳转详情
+        // 5. 点击监听：跳转详情
         holder.itemView.setOnClickListener { onItemClick(item) }
+
+        // 6. 长按监听：只有自己的物什才能触发删除逻辑
+        holder.itemView.setOnLongClickListener {
+            if (item.ownerEmail == currentUserEmail) {
+                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                onItemLongClick(item)
+                true
+            } else {
+                // 别人的东西，长按没有任何反应，或者给个提示
+                Toast.makeText(holder.itemView.context, "非本人藏品无法操作", Toast.LENGTH_SHORT).show()
+                true
+            }
+        }
     }
 
     override fun getItemCount() = items.size
