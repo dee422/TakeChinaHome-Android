@@ -13,6 +13,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide // 建议使用 Glide，如果不使用请根据你的框架调整
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 
@@ -23,16 +24,17 @@ class GiftAdapter(
 ) : RecyclerView.Adapter<GiftAdapter.GiftViewHolder>() {
 
     class GiftViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val imageArea: View? = view.findViewById(R.id.imageArea)
         val nameText: TextView = view.findViewById(R.id.giftNameText)
         val dateText: TextView = view.findViewById(R.id.giftDeadlineText)
         val specText: TextView = view.findViewById(R.id.giftSpecText)
         val descText: TextView = view.findViewById(R.id.giftDescText)
         val carouselRecycler: RecyclerView = view.findViewById(R.id.imageCarouselRecyclerView)
         val btnWish: MaterialButton = view.findViewById(R.id.btnWish)
-
-        // 新增：藏友分享标签的引用
         val layoutShareTag: LinearLayout = view.findViewById(R.id.layoutShareTag)
+
+        // 用于显示市集单张图片的 ImageView（如果你的布局里有的话，如果没有可以复用 Carousel 的一部分逻辑）
+        // 假设我们在 item_gift 布局里有一个专门显示大图的 ImageView 叫 ivMarketImage
+        // 或者我们兼容逻辑：给市集数据也套用 ImageAdapter
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GiftViewHolder {
@@ -45,47 +47,53 @@ class GiftAdapter(
     override fun onBindViewHolder(holder: GiftViewHolder, position: Int) {
         val gift = giftList[position]
 
-        // --- 新增：藏友分享标签逻辑 ---
+        // --- 1. 藏友分享标签逻辑 ---
         if (gift.isFriendShare) {
             holder.layoutShareTag.visibility = View.VISIBLE
-            // 强制清除着色器，恢复图片原貌
+            holder.dateText.visibility = View.GONE // 市集物品通常没有截止日期，隐藏它更美观
             val imageView = holder.itemView.findViewById<ImageView>(R.id.ivShareIcon)
-            imageView.imageTintList = null
+            imageView?.imageTintList = null
         } else {
             holder.layoutShareTag.visibility = View.GONE
+            holder.dateText.visibility = View.VISIBLE
         }
 
-        // 1. 数据绑定
+        // --- 2. 基础数据绑定 ---
         holder.nameText.text = gift.name
-        holder.specText.text = "规格：${gift.spec}"
+        holder.specText.text = if (gift.spec.isNotBlank()) "规格：${gift.spec}" else ""
         holder.descText.text = gift.desc
         holder.dateText.text = "截止: ${gift.deadline}"
 
-        // 2. 配置横向图片轮播
+        // --- 3. 核心修复：兼容市集单图与官方多图轮播 ---
         holder.carouselRecycler.layoutManager =
             LinearLayoutManager(holder.itemView.context, LinearLayoutManager.HORIZONTAL, false)
 
-        if (gift.images.isNullOrEmpty()) {
+        val finalImages = if (gift.isFriendShare && gift.imageUrl.isNotBlank()) {
+            // 如果是市集数据，把单张 imageUrl 包装成 List 给 ImageAdapter 使用
+            listOf(gift.imageUrl)
+        } else {
+            gift.images
+        }
+
+        if (finalImages.isNullOrEmpty()) {
             holder.carouselRecycler.visibility = View.GONE
         } else {
             holder.carouselRecycler.visibility = View.VISIBLE
-            holder.carouselRecycler.adapter = ImageAdapter(gift.images)
+            // 这里复用你已有的 ImageAdapter，它内部应该使用了 Glide 加载地址
+            holder.carouselRecycler.adapter = ImageAdapter(finalImages)
         }
 
-        // 3. 按钮状态
+        // --- 4. 按钮与交互逻辑 ---
         if (gift.isSaved) {
             holder.btnWish.text = "已入画卷"
             holder.btnWish.setIconResource(R.drawable.ic_save)
         } else {
-            holder.btnWish.text = "确入画卷"
+            holder.btnWish.text = if (gift.isFriendShare) "我也想要" else "确入画卷"
             holder.btnWish.setIconResource(R.drawable.ic_heart)
         }
 
-        holder.btnWish.setOnClickListener {
-            onCustomClick(gift)
-        }
+        holder.btnWish.setOnClickListener { onCustomClick(gift) }
 
-        // 4. 长按删除
         holder.itemView.setOnLongClickListener {
             onDeleteLongClick(gift, position)
             true
@@ -94,7 +102,6 @@ class GiftAdapter(
 
     override fun getItemCount() = giftList.size
 
-    // 该方法用于弹出底部表单（名帖登记）
     fun showWishFormDialog(context: Context) {
         val dialog = BottomSheetDialog(context)
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_wish_form, null)
@@ -103,13 +110,11 @@ class GiftAdapter(
         val etContact = view.findViewById<EditText>(R.id.etContact)
         val btnSubmit = view.findViewById<Button>(R.id.btnSubmitWish)
 
-        // 回显逻辑：明天我们再优化具体的 Key，现在先保持空
         btnSubmit.setOnClickListener {
             val contact = etContact.text.toString()
             if (contact.isBlank()) {
                 Toast.makeText(context, "请落笔联系方式", Toast.LENGTH_SHORT).show()
             } else {
-                // 保存逻辑目前在 HomeActivity 处理
                 dialog.dismiss()
             }
         }

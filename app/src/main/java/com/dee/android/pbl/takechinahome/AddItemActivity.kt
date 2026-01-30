@@ -4,14 +4,10 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.dee.android.pbl.takechinahome.AppDatabase
-import com.dee.android.pbl.takechinahome.databinding.ActivityAddItemBinding // 假设你用了 ViewBinding
-import com.dee.android.pbl.takechinahome.ExchangeGift
-import com.dee.android.pbl.takechinahome.RetrofitClient
+import com.dee.android.pbl.takechinahome.databinding.ActivityAddItemBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.*
 
 class AddItemActivity : AppCompatActivity() {
 
@@ -23,16 +19,23 @@ class AddItemActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         binding.btnPublish.setOnClickListener {
-            val title = binding.etTitle.text.toString()
-            val description = binding.etDescription.text.toString()
+            val title = binding.etTitle.text.toString().trim()
+            val description = binding.etDescription.text.toString().trim()
 
             if (title.isNotEmpty() && description.isNotEmpty()) {
+                // 实际开发建议从本地数据库获取当前登录用户的 Email
+                val currentUserEmail = "user@example.com"
+
+                // 1. 修正：使用对齐后的字段名 itemName 和 description
                 val newGift = ExchangeGift(
                     id = 0,
-                    title = title,
-                    story = description,
-                    imageUrl = "", // 这里暂时留空，之后可以接上传图片逻辑
-                    ownerEmail = "user@example.com" // 这里应获取当前登录用户的Email
+                    ownerEmail = currentUserEmail,
+                    itemName = title,       // 修正：title -> itemName
+                    description = description, // 修正：story -> description
+                    imageUrl = "",
+                    status = 1,             // 初始状态：待审核
+                    contactCode = "未填写",   // 对应规格第8项
+                    exchangeWish = 1        // 对应规格第9项，默认为 1(置换)
                 )
                 saveAndSync(newGift)
             } else {
@@ -44,23 +47,22 @@ class AddItemActivity : AppCompatActivity() {
     private fun saveAndSync(gift: ExchangeGift) {
         lifecycleScope.launch {
             try {
-                // A. 保存到本地 Room
+                // A. 保存到本地数据库
                 withContext(Dispatchers.IO) {
                     val db = AppDatabase.getDatabase(this@AddItemActivity)
                     db.exchangeDao().insert(gift)
                 }
 
-                // B. 同步到云端 (改用协程方式调用)
-                // 注意：这里调用的是 applyExchangeReview，对应 ApiService 中的定义
+                // B. 同步到云端：必须严格匹配 ApiService 中的 @Field 参数名
                 val response = withContext(Dispatchers.IO) {
                     RetrofitClient.instance.applyExchangeReview(
                         id = gift.id,
-                        ownerEmail = gift.ownerEmail,
-                        title = gift.title,
-                        story = gift.story,
-                        contactCode = "未填写",
-                        exchangeWish = "面议",
-                        imageData = null // 暂时没传图片
+                        owner_email = gift.ownerEmail,      // 对齐 ApiService 命名
+                        item_name = gift.itemName,          // 对齐 ApiService 命名
+                        description = gift.description,     // 对齐 ApiService 命名
+                        contact_code = gift.contactCode,    // 对齐 ApiService 命名
+                        exchange_wish = gift.exchangeWish,  // 对齐 ApiService 类型 (Int)
+                        image_data = null                   // 对齐 ApiService 命名
                     )
                 }
 
@@ -72,8 +74,8 @@ class AddItemActivity : AppCompatActivity() {
                 }
 
             } catch (e: Exception) {
-                // 网络连接失败或解析失败
                 android.util.Log.e("AddItem", "Sync Error: ${e.message}")
+                // 即使网络失败，本地已经保存，符合离线可用原则
                 Toast.makeText(this@AddItemActivity, "云端同步异常，本地已存入", Toast.LENGTH_SHORT).show()
                 finish()
             }

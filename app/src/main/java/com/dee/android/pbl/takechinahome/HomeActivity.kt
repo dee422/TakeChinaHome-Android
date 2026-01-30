@@ -46,6 +46,7 @@ import java.util.Locale
 import java.util.Random
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.async
 
 class HomeActivity : AppCompatActivity() {
 
@@ -87,7 +88,7 @@ class HomeActivity : AppCompatActivity() {
 
                 // 4. 数据准备好后，如果是第一次进入（列表为空），执行同步
                 if (myGifts.isEmpty()) {
-                    loadGiftsFromServer()
+                    loadAllGiftsFromServer()
                 }
             }
         }
@@ -164,7 +165,7 @@ class HomeActivity : AppCompatActivity() {
         // 6. 数据加载逻辑
         loadCachedGifts()
         if (myGifts.isEmpty()) {
-            loadGiftsFromServer()
+            loadAllGiftsFromServer()
         }
 
         // 7. 下拉刷新逻辑
@@ -717,41 +718,65 @@ class HomeActivity : AppCompatActivity() {
         Toast.makeText(this, "清单已清空", Toast.LENGTH_SHORT).show()
     }
 
-    // --- 5. 数据加载与缓存 ---
-    private fun loadGiftsFromServer() {
-        // 1. 立即在主线程找到引用并开始动画
-        val swipeLayout = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeRefreshLayout)
-        swipeLayout.isRefreshing = true
+    // 将原有的 loadGiftsFromServer 和 refreshGifts 逻辑合并至此
+    private fun loadAllGiftsFromServer(swipe: SwipeRefreshLayout? = null) {
+        swipe?.isRefreshing = true
 
         lifecycleScope.launch {
             try {
-                // 2. 切换到 IO 线程请求数据
-                val response = withContext(Dispatchers.IO) {
-                    RetrofitClient.instance.getGifts()
+                val officialDeferred = async(Dispatchers.IO) { RetrofitClient.instance.getGifts() }
+                val marketDeferred = async(Dispatchers.IO) { RetrofitClient.instance.getMarketGifts() }
+
+                // 使用 try-catch 保护，防止其中一个接口挂了带崩整个 App
+                val officialResponse = try { officialDeferred.await() } catch (e: Exception) { null }
+                val marketResponse = try { marketDeferred.await() } catch (e: Exception) {
+                    Log.e("API_ERROR", "市场接口故障: ${e.message}")
+                    null
                 }
 
-                // 3. 回到主线程处理 UI
                 withContext(Dispatchers.Main) {
-                    if (response != null) {
-                        myGifts.clear()
-                        myGifts.addAll(response)
+                    val combinedList = mutableListOf<Gift>()
 
-                        // --- 注入测试代码：让新同步下来的第一项显示图标 ---
-                        if (myGifts.isNotEmpty()) {
-                            myGifts[0].isFriendShare = true
-                        }
-                        // -------------------------------------------
-
-                        adapter.notifyDataSetChanged()
+                    // 【补漏】步骤 2：先装入官方数据 (officialResponse)
+                    officialResponse?.let {
+                        combinedList.addAll(it)
+                        Log.d("SyncDebug", "成功装入官方数据: ${it.size} 件")
                     }
+
+                    // 步骤 3：装入已过审的置换数据
+                    // 显式指定 List<ExchangeGift> 类型，解决所有 "Cannot infer type" 报错
+                    val marketList = marketResponse as? List<ExchangeGift>
+
+                    marketList?.let { list ->
+                        val sharedGifts = list.filter { it.status == 2 }.map { item ->
+                            Gift(
+                                id = item.id,
+                                name = item.itemName ?: "无名藏品", // 修正：使用 itemName
+                                spec = item.description ?: "暂无描述", // 修正：使用 description
+                                isFriendShare = true
+                            ).apply {
+                                // 必须手动传递图片地址，否则界面会没有图
+                                this.imageUrl = item.imageUrl ?: ""
+                            }
+                        }
+                        combinedList.addAll(sharedGifts)
+                        Log.d("SyncDebug", "成功装入市集数据: ${sharedGifts.size} 件")
+                    }
+
+                    // 步骤 4：统一更新 UI
+                    myGifts.clear()
+                    myGifts.addAll(combinedList)
+                    adapter.notifyDataSetChanged()
+
+                    cacheGiftsLocally()
+                    updateEmptyView() // 别忘了更新“空空如也”的提示
                 }
             } catch (e: Exception) {
-                // 如果报错（如 404、超时、解析失败），这里会捕获
-                Log.e("RETROFIT_ERROR", "请求失败: ${e.message}")
+                Log.e("HomeActivity", "加载失败: ${e.message}")
+                if (swipe != null) Toast.makeText(this@HomeActivity, "云端卷宗暂不可寻，请稍后再试", Toast.LENGTH_SHORT).show()
             } finally {
-                // 4. 重点：无论如何，停止刷新动画并释放 UI
                 withContext(Dispatchers.Main) {
-                    swipeLayout.isRefreshing = false
+                    swipe?.isRefreshing = false
                     updateEmptyView()
                 }
             }
@@ -762,56 +787,24 @@ class HomeActivity : AppCompatActivity() {
         val json = getSharedPreferences("DataCache", MODE_PRIVATE).getString("cached_gifts", null)
         if (!json.isNullOrEmpty()) {
             val type = object : TypeToken<MutableList<Gift>>() {}.type
-            myGifts.clear()
-            myGifts.addAll(gson.fromJson(json, type))
+            val cachedList: MutableList<Gift> = gson.fromJson(json, type)
 
-            // --- 注入测试代码：让列表第一项显示图标 ---
-            if (myGifts.isNotEmpty()) {
-                myGifts[0].isFriendShare = true
-            }
-            // ------------------------------------
+            myGifts.clear()
+            myGifts.addAll(cachedList)
+            // ❌ 此处已彻底删除 myGifts[0].isFriendShare = true
 
             adapter.notifyDataSetChanged()
         }
     }
 
+    private fun refreshGifts(swipe: SwipeRefreshLayout) {
+        // 逻辑内容保持之前给你的弹窗版本即可
+        loadAllGiftsFromServer(swipe)
+    }
+
     private fun cacheGiftsLocally() {
         val json = gson.toJson(myGifts)
         getSharedPreferences("DataCache", MODE_PRIVATE).edit { putString("cached_gifts", json) }
-    }
-
-    private fun refreshGifts(swipe: SwipeRefreshLayout) {
-        // 弹出确认对话框，防止误操作清空已保存的订单
-        MaterialAlertDialogBuilder(this)
-            .setTitle("重新洗炼")
-            .setMessage("同步云端将重置当前画卷的所有定制信息，是否继续？")
-            .setPositiveButton("确定") { _, _ ->
-                // 用户确认，开始同步
-                lifecycleScope.launch {
-                    try {
-                        val response = RetrofitClient.instance.getGifts()
-                        if (response.isNotEmpty()) {
-                            myGifts.clear()
-                            myGifts.addAll(response)
-                            adapter.notifyDataSetChanged()
-                            cacheGiftsLocally() // 同步后立即更新本地缓存
-                            updateEmptyView()
-                            Toast.makeText(this@HomeActivity, "画卷已焕然一新", Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: Exception) {
-                        Log.e("Log", "同步失败: ${e.message}")
-                        Toast.makeText(this@HomeActivity, "云端暂不可达，请稍后再试", Toast.LENGTH_SHORT).show()
-                    } finally {
-                        swipe.isRefreshing = false // 停止旋转动画
-                    }
-                }
-            }
-            .setNegativeButton("取消") { _, _ ->
-                // 用户取消，直接停止刷新动画
-                swipe.isRefreshing = false
-            }
-            .setCancelable(false) // 强制用户做出选择
-            .show()
     }
 
     private fun updateEmptyView() {

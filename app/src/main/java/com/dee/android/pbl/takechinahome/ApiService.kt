@@ -5,16 +5,16 @@ import retrofit2.http.*
 
 interface ApiService {
 
-    // 1. 获取岁时礼清单 (对应 gifts.json)
+    // 1. 获取岁时礼清单
     @GET("gifts.json")
     suspend fun getGifts(): List<Gift>
 
-    // 2. 删除特定礼品 (对应 delete_gift.php)
+    // 2. 删除特定礼品
     @FormUrlEncoded
     @POST("delete_gift.php")
     suspend fun deleteGift(@Field("id") id: Int): Response<Unit>
 
-    // 3. 用户注册 (对应 register.php)
+    // 3. 用户注册
     @FormUrlEncoded
     @POST("register.php")
     suspend fun register(
@@ -24,7 +24,7 @@ interface ApiService {
         @Field("from_invite_code") fromCode: String
     ): ApiResponse
 
-    // 4. 用户登录 (对应 login.php)
+    // 4. 用户登录
     @FormUrlEncoded
     @POST("login.php")
     suspend fun login(
@@ -32,7 +32,7 @@ interface ApiService {
         @Field("password") pass: String
     ): LoginResponse
 
-    // 5. 修改密码 (对应 update_password.php)
+    // 5. 修改密码
     @FormUrlEncoded
     @POST("update_password.php")
     suspend fun updatePassword(
@@ -42,22 +42,22 @@ interface ApiService {
     ): ApiResponse
 
     /**
-     * 6. 提交/审核交换申请 (对应 exchange/apply_review.php)
-     * 已对齐最新的 PHP 字段：增加了联系暗号、置换意向
+     * 6. 提交/审核交换申请 (核心修正点)
+     * 参数名统一采用下划线格式，确保与 ExchangeActivity 中的调用及 PHP 接收完全一致
      */
     @FormUrlEncoded
     @POST("exchange/apply_review.php")
     suspend fun applyExchangeReview(
         @Field("id") id: Int,
-        @Field("owner_email") ownerEmail: String,
-        @Field("item_name") title: String,
-        @Field("description") story: String,
-        @Field("contact_code") contactCode: String,    // 新增：联系暗号 (对应 PHP $contact_code)
-        @Field("exchange_wish") exchangeWish: String,  // 新增：置换意向 (对应 PHP $exchange_wish)
-        @Field("image_data") imageData: String? = null // Base64 图片数据
+        @Field("owner_email") owner_email: String,
+        @Field("item_name") item_name: String,
+        @Field("description") description: String,
+        @Field("image_data") image_data: String?,
+        @Field("contact_code") contact_code: String,
+        @Field("exchange_wish") exchange_wish: Int // 修正为 Int (1:置换, 2:售卖)
     ): ApiResponse
 
-    // 7. 确认订单/同步云端 (对应 orders/confirm.php)
+    // 7. 确认订单/同步云端
     @FormUrlEncoded
     @POST("orders/confirm.php")
     suspend fun uploadOrderConfirm(
@@ -66,20 +66,20 @@ interface ApiService {
         @Field("order_details_json") json: String
     ): ApiResponse
 
-    // 8. 获取市场交换列表 (对应 exchange/get_market.php)
+    // 8. 获取市场交换列表
     @GET("exchange/get_market.php")
     suspend fun getMarketGifts(): List<ExchangeGift>
 
-    // 9. 下架礼品 (对应 take_down_item.php)
+    // 9. 下架礼品
     @FormUrlEncoded
     @POST("take_down_item.php")
     suspend fun requestTakeDown(
         @Field("item_id") id: Int,
-        @Field("owner_email") email: String
+        @Field("owner_email") owner_email: String
     ): ApiResponse
 }
 
-// --- 数据类保持不变 ---
+// --- 数据类 ---
 
 data class ApiResponse(
     val success: Boolean,

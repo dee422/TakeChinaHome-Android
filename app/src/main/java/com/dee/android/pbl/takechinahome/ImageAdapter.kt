@@ -7,57 +7,54 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
-// 注意：这里已经修复为正确的导入路径，不再包含 .github
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 
 class ImageAdapter(private val imageUrls: List<String>) :
     RecyclerView.Adapter<ImageAdapter.ImageViewHolder>() {
 
-    // 内部类：持有 item_image.xml 中的 ImageView 引用
     class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val imageView: ImageView = view.findViewById(R.id.itemImageView)
     }
 
-    // 创建照片墙中每一张图片的“格位”
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ImageViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_image, parent, false)
         return ImageViewHolder(view)
     }
 
-    // 核心绑定逻辑：加载图片并处理点击事件
     override fun onBindViewHolder(holder: ImageViewHolder, position: Int) {
         val url = imageUrls[position]
 
-        // 使用 Glide 加载图片，centerCrop 确保多图排列整齐
+        // 优化 1：添加 crossFade 渐变动画，加载更平滑
+        // 优化 2：添加 placeholder 占位图，防止加载过程一片空白
         Glide.with(holder.itemView.context)
             .load(url)
+            .placeholder(R.drawable.ic_launcher_background) // 建议换成你的古风占位图
             .centerCrop()
+            .transition(DrawableTransitionOptions.withCrossFade())
             .into(holder.imageView)
 
-        // 点击监听：触发全屏预览对话框
         holder.itemView.setOnClickListener {
             showFullScreenImage(holder.itemView.context, url)
         }
     }
 
-    // 点击后的全屏预览逻辑
     private fun showFullScreenImage(context: Context, url: String) {
-        // 创建全屏对话框
         val dialog = Dialog(context, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         val imageView = ImageView(context)
+
+        // 优化 3：设置全屏大图的缩放类型为 fitCenter，保证长图能完整显示而不被剪裁
+        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
         dialog.setContentView(imageView)
 
-        // 加载原始大图
         Glide.with(context)
             .load(url)
             .into(imageView)
 
-        // 再次点击大图即可退出预览
         imageView.setOnClickListener { dialog.dismiss() }
         dialog.show()
     }
 
-    // 返回当前礼品的图片总数
     override fun getItemCount(): Int = imageUrls.size
 }
