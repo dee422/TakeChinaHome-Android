@@ -18,6 +18,7 @@ class ImageAdapter(private val imageUrls: List<String>) :
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ImageViewHolder {
+        // 这里的关键是确保 item_image 布局被正确加载
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_image, parent, false)
         return ImageViewHolder(view)
@@ -26,11 +27,11 @@ class ImageAdapter(private val imageUrls: List<String>) :
     override fun onBindViewHolder(holder: ImageViewHolder, position: Int) {
         val url = imageUrls[position]
 
-        // 优化 1：添加 crossFade 渐变动画，加载更平滑
-        // 优化 2：添加 placeholder 占位图，防止加载过程一片空白
+        // 如果 URL 为空，Glide 默认会显示 placeholder
         Glide.with(holder.itemView.context)
             .load(url)
-            .placeholder(R.drawable.ic_launcher_background) // 建议换成你的古风占位图
+            .placeholder(R.drawable.ic_launcher_background)
+            .error(R.drawable.ic_launcher_background) // 出错时也显示占位图，避免空白
             .centerCrop()
             .transition(DrawableTransitionOptions.withCrossFade())
             .into(holder.imageView)
@@ -44,7 +45,6 @@ class ImageAdapter(private val imageUrls: List<String>) :
         val dialog = Dialog(context, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         val imageView = ImageView(context)
 
-        // 优化 3：设置全屏大图的缩放类型为 fitCenter，保证长图能完整显示而不被剪裁
         imageView.scaleType = ImageView.ScaleType.FIT_CENTER
         dialog.setContentView(imageView)
 

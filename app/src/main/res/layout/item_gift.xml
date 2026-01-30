@@ -40,7 +40,6 @@
             android:layout_marginHorizontal="16dp"/>
 
         <LinearLayout
-            android:id="@+id/textContentArea"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -78,37 +77,50 @@
                         android:layout_marginEnd="6dp"
                         android:background="#158B4513"
                         android:gravity="center_vertical"
-                        android:paddingHorizontal="4dp"
-                        android:paddingVertical="1dp"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="2dp"
+                        android:orientation="horizontal"
                         android:visibility="gone"
                         tools:visibility="visible">
 
                         <ImageView
                             android:id="@+id/ivShareIcon"
-                            android:layout_width="16dp"
-                            android:layout_height="16dp"
-                            android:src="@drawable/ic_friend_share"
-                            android:scaleType="fitCenter"
-                             /> <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="2dp"
-                        android:text="藏友分享"
-                        android:textColor="#8B4513"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:src="@drawable/ic_friend_share" />
+
+                        <TextView
+                            android:id="@+id/tvTagFriend"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="4dp"
+                            android:text="藏友收藏"
+                            android:textColor="#8B4513"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvTagWish"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="4dp"
+                            android:text="· 意向：置换"
+                            android:textColor="#8B4513"
+                            android:textSize="10sp"
+                            android:visibility="visible" />
                     </LinearLayout>
 
                     <TextView
                         android:id="@+id/giftNameText"
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:maxLines="1"
                         android:textColor="#2C3E50"
                         android:textSize="18sp"
                         android:textStyle="bold"
-                        tools:text="非遗艺术品名称" />
+                        tools:text="名称" />
                 </LinearLayout>
             </RelativeLayout>
 
@@ -129,7 +141,7 @@
                 android:lineSpacingExtra="5dp"
                 android:textColor="#34495E"
                 android:textSize="14sp"
-                tools:text="雨过天青云破处。此茶承承袭宋代审美..." />
+                tools:text="描述详情内容..." />
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -142,14 +154,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
-                    android:text="@string/confirmed"
-                    android:textColor="#8B4513"
+                    android:text="确入画卷"  android:textColor="#8B4513"
                     android:textSize="14sp"
                     app:strokeColor="#8B4513"
                     app:cornerRadius="20dp"
                     app:icon="@drawable/ic_heart"
                     app:iconTint="#8B4513"
-                    app:iconGravity="textStart"/>
+                    app:iconGravity="textStart"
+                    contentDescription="添加到清单" />
             </RelativeLayout>
         </LinearLayout>
     </LinearLayout>

@@ -32,6 +32,9 @@ data class Gift(
     // --- 新增：兼容市集数据的单张图片字段 ---
     var imageUrl: String = "",
 
+    // --- 新增：置换意向 (1: 置换, 2: 售卖) ---
+    var exchangeWish: Int = 1,
+
     // 本地操作字段
     var label: String = "",
     var customText: String = "",
@@ -40,7 +43,4 @@ data class Gift(
     var customNotes: String = "",
     var isSaved: Boolean = false,
     var isFriendShare: Boolean = false
-) : Serializable {
-    // Room 需要一个无参或包含所有非 @Ignore 字段的构造函数
-    // 这里的 constructor 已经足够 Room 使用
-}
+) : Serializable
