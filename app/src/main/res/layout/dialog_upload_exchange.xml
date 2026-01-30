@@ -32,11 +32,13 @@
             android:text="藏品名"
             android:textColor="#8B4513"
             android:textStyle="bold" />
+
         <EditText
             android:id="@+id/etUploadTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="如：景德镇青花盏" />
+            android:hint="如：景德镇青花盏"
+            android:minHeight="48dp" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -45,6 +47,7 @@
             android:text="藏品故事"
             android:textColor="#8B4513"
             android:textStyle="bold" />
+
         <EditText
             android:id="@+id/etUploadStory"
             android:layout_width="match_parent"
@@ -59,11 +62,27 @@
             android:text="置换意向"
             android:textColor="#8B4513"
             android:textStyle="bold" />
-        <EditText
-            android:id="@+id/etUploadWant"
+
+        <RadioGroup
+            android:id="@+id/rgExchangeWish"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="想换取什么样的雅物？" />
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rbExchange"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="置换"
+                android:checked="true" />
+
+            <RadioButton
+                android:id="@+id/rbSell"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="24dp"
+                android:text="售卖" />
+        </RadioGroup>
 
         <TextView
             android:layout_width="wrap_content"
@@ -72,10 +91,12 @@
             android:text="联系暗号"
             android:textColor="#8B4513"
             android:textStyle="bold" />
+
         <EditText
             android:id="@+id/etUploadContact"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="微信号/手机号" />
+            android:hint="微信号/手机号"
+            android:minHeight="48dp" />
     </LinearLayout>
 </ScrollView>

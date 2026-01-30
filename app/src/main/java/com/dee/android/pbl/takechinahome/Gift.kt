@@ -10,7 +10,7 @@ import java.io.Serializable
 data class Gift(
     @PrimaryKey
     @SerializedName("id")
-    var id: Int = 0,             // 修正：JSON 里的 id 是数字，所以用 Int
+    var id: Int = 0,
 
     @SerializedName("name")
     var name: String = "",
@@ -24,11 +24,15 @@ data class Gift(
     @SerializedName("desc")
     var desc: String = "",
 
+    // 官方数据：图片列表
     @Ignore
     @SerializedName("images")
     var images: List<String> = mutableListOf(),
 
-    // 以下是本地操作字段，JSON 中没有，所以给默认值
+    // --- 新增：兼容市集数据的单张图片字段 ---
+    var imageUrl: String = "",
+
+    // 本地操作字段
     var label: String = "",
     var customText: String = "",
     var customQuantity: String = "1",
@@ -37,6 +41,6 @@ data class Gift(
     var isSaved: Boolean = false,
     var isFriendShare: Boolean = false
 ) : Serializable {
-    // 必须保留一个给 Room 使用的构造函数（包含所有非 @Ignore 字段）
-    constructor() : this(0, "", "", "", "", mutableListOf())
+    // Room 需要一个无参或包含所有非 @Ignore 字段的构造函数
+    // 这里的 constructor 已经足够 Room 使用
 }
