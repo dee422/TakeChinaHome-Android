@@ -93,6 +93,11 @@ interface ApiService {
         @Field("id") id: Int,
         @Field("owner_email") ownerEmail: String
     ): ApiResponse
+
+    @GET("get_order_history.php")
+    suspend fun getOrderHistory(
+        @Query("email") email: String
+    ): List<OrderHistory> // 注意这里返回的是一个 List 集合
 }
 
 // --- 数据类 ---
