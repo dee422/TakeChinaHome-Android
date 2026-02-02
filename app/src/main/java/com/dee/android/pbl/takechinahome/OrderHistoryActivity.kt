@@ -51,14 +51,48 @@ class OrderHistoryActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val db = AppDatabase.getDatabase(this@OrderHistoryActivity)
             val user = db.userDao().getCurrentUser()
+
             if (user != null) {
-                val history = db.orderHistoryDao().getOrdersByUser(user.email)
-                withContext(Dispatchers.Main) {
-                    if (history.isEmpty()) {
-                        Toast.makeText(this@OrderHistoryActivity, "卷宗空空", Toast.LENGTH_SHORT).show()
+                try {
+                    // 1. 尝试从云端拉取最新卷宗
+                    val cloudHistory = RetrofitClient.instance.getOrderHistory(user.email)
+
+                    withContext(Dispatchers.Main) {
+                        // 更新 UI 展示云端数据
+                        adapter.updateData(cloudHistory)
+
+                        // 2. 异步同步到本地数据库（可选，但推荐，方便离线查看）
+                        syncToLocal(db, cloudHistory)
+
+                        if (cloudHistory.isEmpty()) {
+                            Toast.makeText(this@OrderHistoryActivity, "云端暂无您的卷宗", Toast.LENGTH_SHORT).show()
+                        }
                     }
-                    adapter.updateData(history)
+                } catch (e: Exception) {
+                    // 3. 网络失败时，读取本地 Room 缓存兜底
+                    Log.e("Sync", "拉取云端失败，改用本地缓存: ${e.message}")
+                    val localHistory = db.orderHistoryDao().getOrdersByUser(user.email)
+
+                    withContext(Dispatchers.Main) {
+                        adapter.updateData(localHistory)
+                        if (localHistory.isEmpty()) {
+                            Toast.makeText(this@OrderHistoryActivity, "本地亦无卷宗，请检查网络", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@OrderHistoryActivity, "已载入本地存卷（离线模式）", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
+            }
+        }
+    }
+
+    // 辅助函数：将云端数据刷新到本地 Room
+    private suspend fun syncToLocal(db: AppDatabase, cloudData: List<OrderHistory>) {
+        withContext(Dispatchers.IO) {
+            // 这里可以根据业务决定是全量覆盖还是增量插入
+            // 为简单起见，可以先插入所有新数据
+            cloudData.forEach { order ->
+                db.orderHistoryDao().insertOrder(order)
             }
         }
     }
