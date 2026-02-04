@@ -146,8 +146,10 @@ class HomeActivity : AppCompatActivity() {
 
         // 4. 核心：右下角“往期卷宗”按钮逻辑
         findViewById<com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton>(R.id.fabHistory).setOnClickListener {
-            // 跳转到我们新建的历史记录页面
-            val intent = Intent(this@HomeActivity, OrderHistoryActivity::class.java)
+            // ✨ 修改：指向 IntentListActivity，并带上当前用户的 Email
+            val intent = Intent(this@HomeActivity, IntentListActivity::class.java).apply {
+                putExtra("USER_EMAIL", currentUser?.email ?: "")
+            }
             startActivity(intent)
         }
 
