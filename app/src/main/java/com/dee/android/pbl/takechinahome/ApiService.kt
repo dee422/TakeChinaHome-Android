@@ -1,5 +1,6 @@
 package com.dee.android.pbl.takechinahome
 
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -22,7 +23,7 @@ interface ApiService {
         @Field("email") email: String,
         @Field("password") pass: String,
         @Field("from_invite_code") fromCode: String
-    ): ApiResponse
+    ): ApiResponse<Any?> // 修正：统一使用泛型版
 
     // 4. 用户登录
     @FormUrlEncoded
@@ -39,12 +40,9 @@ interface ApiService {
         @Field("email") email: String,
         @Field("old_password") oldPass: String,
         @Field("new_password") newPass: String
-    ): ApiResponse
+    ): ApiResponse<Any?>
 
-    /**
-     * 6. 提交/审核交换申请 (核心修正点)
-     * 参数名统一采用下划线格式，确保与 ExchangeActivity 中的调用及 PHP 接收完全一致
-     */
+    // 6. 提交/审核交换申请
     @FormUrlEncoded
     @POST("exchange/apply_review.php")
     suspend fun applyExchangeReview(
@@ -54,8 +52,8 @@ interface ApiService {
         @Field("description") description: String,
         @Field("image_data") image_data: String?,
         @Field("contact_code") contact_code: String,
-        @Field("exchange_wish") exchange_wish: Int // 修正为 Int (1:置换, 2:售卖)
-    ): ApiResponse
+        @Field("exchange_wish") exchange_wish: Int
+    ): ApiResponse<Any?>
 
     // 7. 确认订单/同步云端
     @FormUrlEncoded
@@ -64,7 +62,7 @@ interface ApiService {
         @Field("user_email") userEmail: String,
         @Field("contact_name") contactName: String,
         @Field("order_details_json") json: String
-    ): ApiResponse
+    ): ApiResponse<Any?>
 
     // 8. 获取市场交换列表
     @GET("exchange/get_market.php")
@@ -76,7 +74,7 @@ interface ApiService {
     suspend fun requestTakeDown(
         @Field("id") id: Int,
         @Field("owner_email") ownerEmail: String
-    ): ApiResponse
+    ): ApiResponse<Any?>
 
     // 10. 删除置换品
     @FormUrlEncoded
@@ -84,7 +82,7 @@ interface ApiService {
     suspend fun deleteExchangeItem(
         @Field("id") id: Int,
         @Field("owner_email") ownerEmail: String
-    ): ApiResponse
+    ): ApiResponse<Any?>
 
     // 11. 重新上架
     @FormUrlEncoded
@@ -92,19 +90,48 @@ interface ApiService {
     suspend fun relistItem(
         @Field("id") id: Int,
         @Field("owner_email") ownerEmail: String
-    ): ApiResponse
+    ): ApiResponse<Any?>
 
+    // --- 旧版历史记录 (保留以防旧页面崩溃) ---
     @GET("get_order_history.php")
     suspend fun getOrderHistory(
         @Query("email") email: String
-    ): List<OrderHistory> // 注意这里返回的是一个 List 集合
+    ): List<OrderHistory>
+
+    // ✨ 新版意向卷宗系统 (新航道)
+    @GET("get_customer_intent_orders.php")
+    suspend fun getRealtimeOrders(
+        @Query("email") email: String
+    ): ApiResponse<List<Order>> // 这里现在不会报错了
+
+    @FormUrlEncoded
+    @POST("delete_order_customer.php")
+    suspend fun deleteOrder(@Field("id") id: Int): ApiResponse<Any?>
+
+    // ✨ 客户端同步意向确认接口
+    @FormUrlEncoded
+    @POST("update_order_intent.php")
+    suspend fun confirmOrderIntent(
+        @Field("order_id") orderId: Int,
+        @Field("target_gift_name") giftName: String,
+        @Field("target_qty") qty: Int,
+        @Field("delivery_date") date: String,
+        @Field("contact_method") contact: String,
+        @Field("manager_name") managerName: String,
+        @Field("intent_confirm_status") status: Int = 1
+    ): ApiResponse<Any?>
+
+    @GET("get_managers.php")
+    suspend fun getManagers(): ApiResponse<List<Manager>>
 }
 
-// --- 数据类 ---
+// --- 数据类定义 ---
 
-data class ApiResponse(
+// 1. 统一的响应结构
+data class ApiResponse<T>(
     val success: Boolean,
-    val message: String
+    val message: String,
+    val data: T? = null // 增加 data 字段支持
 )
 
 data class LoginResponse(
@@ -112,4 +139,34 @@ data class LoginResponse(
     val message: String,
     val account: String?,
     val invite_code: String?
+)
+
+// 2. ✨ 核心 Order 模型 (必须与管理端字段一致)
+data class Order(
+    val id: Int,
+    @SerializedName("is_intent") val isIntent: Int,
+    val status: String,
+    @SerializedName("contact_name") val contactName: String,
+    @SerializedName("user_email") val userEmail: String,
+    val details: List<OrderDetailItem>,
+    @SerializedName("ai_suggestion") val aiSuggestion: String?,
+    @SerializedName("target_gift_name") val targetGiftName: String?,
+    @SerializedName("target_qty") val targetQty: Int,
+    @SerializedName("delivery_date") val deliveryDate: String?,
+    @SerializedName("contact_method") val contactMethod: String?,
+    @SerializedName("intent_confirm_status") val intentConfirmStatus: Int,
+    @SerializedName("manager_name") val managerName: String?
+)
+
+data class OrderDetailItem(
+    val name: String,
+    val qty: Int,
+    val spec: String?,
+    val note: String?
+)
+
+data class Manager(
+    val username: String,
+    // ✨ 使用 SerializedName 适配 PHP 可能返回的 'name' 或 'nickname'
+    @SerializedName("nickname") val nickname: String
 )
