@@ -134,7 +134,7 @@ class RegisterActivity : AppCompatActivity() {
 
             override fun onResponse(call: Call, response: Response) {
                 response.use { resp ->
-                    val responseData = resp.body()?.string()
+                    val responseData = resp.body?.string()
                     runOnUiThread {
                         try {
                             if (resp.isSuccessful && responseData != null) {

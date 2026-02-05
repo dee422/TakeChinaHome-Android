@@ -81,4 +81,6 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3") // 用于生成二维码矩阵
 
     implementation("com.github.chrisbanes:PhotoView:2.3.0")
+
+    implementation("io.coil-kt:coil-compose:2.4.0")
 }

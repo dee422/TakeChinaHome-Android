@@ -155,7 +155,8 @@ data class Order(
     @SerializedName("delivery_date") val deliveryDate: String?,
     @SerializedName("contact_method") val contactMethod: String?,
     @SerializedName("intent_confirm_status") val intentConfirmStatus: Int,
-    @SerializedName("manager_name") val managerName: String?
+    @SerializedName("manager_name") val managerName: String?,
+    @SerializedName("final_image_path") val finalImagePath: String?
 )
 
 data class OrderDetailItem(
