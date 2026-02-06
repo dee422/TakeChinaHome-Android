@@ -117,6 +117,7 @@ interface ApiService {
         @Field("target_qty") qty: Int,
         @Field("delivery_date") date: String,
         @Field("contact_method") contact: String,
+        @Field("manager_id") managerId: Int,    // ✨ 核心新增：传经理 ID
         @Field("manager_name") managerName: String,
         @Field("intent_confirm_status") status: Int = 1
     ): ApiResponse<Any?>
@@ -167,7 +168,7 @@ data class OrderDetailItem(
 )
 
 data class Manager(
-    val username: String,
-    // ✨ 使用 SerializedName 适配 PHP 可能返回的 'name' 或 'nickname'
+    val id: Int,
+    // val username: String, // 👈 如果 PHP 没返回这个，就把这行注释掉或删掉
     @SerializedName("nickname") val nickname: String
 )

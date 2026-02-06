@@ -162,8 +162,6 @@ fun CustomerIntentConfirmContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isLocked = order.intentConfirmStatus == 1
-
-    // 修正：确保这里的 isIntent 和 finalImagePath 与你的 Order 数据类定义一致
     val isFormal = order.isIntent == 0 && !order.finalImagePath.isNullOrBlank()
 
     // --- 状态管理 ---
@@ -171,37 +169,58 @@ fun CustomerIntentConfirmContent(
     var qty by remember { mutableStateOf(if (order.targetQty == 0) (order.details.firstOrNull()?.qty?.toString() ?: "") else order.targetQty.toString()) }
     var date by remember { mutableStateOf(order.deliveryDate ?: "") }
     var contact by remember { mutableStateOf(order.contactMethod ?: "") }
+
+    // 经理选择状态
     var selectedManagerName by remember { mutableStateOf(order.managerName ?: "") }
+    // ✨ 初始 ID 应该从 order 中取，如果 order.managerId 存在的话
+    var selectedManagerId by remember { mutableIntStateOf(0) }
+
     var managerList by remember { mutableStateOf<List<Manager>>(emptyList()) }
     var expanded by remember { mutableStateOf(false) }
     var showAiConfirmDialog by remember { mutableStateOf(false) }
 
-    // 获取经理列表
+    // 获取经理列表并同步初始 ID
     LaunchedEffect(Unit) {
         try {
             val res = RetrofitClient.instance.getManagers()
-            if (res.success) managerList = res.data ?: emptyList()
-        } catch (e: Exception) {
-            android.util.Log.e("API", "获取经理失败", e)
-        }
+            if (res.success) {
+                val list = res.data ?: emptyList()
+                managerList = list
+                // ✨ 关键：如果订单里已有经理名，进来就先帮用户把 ID 存好
+                if (selectedManagerName.isNotEmpty()) {
+                    val match = list.find { it.nickname == selectedManagerName }
+                    if (match != null) selectedManagerId = match.id
+                }
+            }
+        } catch (e: Exception) { /* log */ }
     }
 
     // 提交逻辑封装
     val performSubmit = {
         scope.launch {
-            val res = RetrofitClient.instance.confirmOrderIntent(
-                orderId = order.id,
-                giftName = giftName,
-                qty = qty.toIntOrNull() ?: 0,
-                date = date,
-                contact = contact,
-                managerName = selectedManagerName,
-                status = 1
-            )
-            if (res.success) {
-                Toast.makeText(context, "意向已锁定，等待经理转正", Toast.LENGTH_SHORT).show()
-                onRefresh()
-                onDismiss()
+            try {
+                // ✨ 调试日志：确保点击时 ID 不是 0
+                android.util.Log.d("API", "提交订单: ID=${order.id}, ManagerID=$selectedManagerId")
+
+                val res = RetrofitClient.instance.confirmOrderIntent(
+                    orderId = order.id,
+                    giftName = giftName,
+                    qty = qty.toIntOrNull() ?: 0,
+                    date = date,
+                    contact = contact,
+                    managerId = selectedManagerId, // ✨ 传入 ID
+                    managerName = selectedManagerName,
+                    status = 1
+                )
+                if (res.success) {
+                    Toast.makeText(context, "意向已锁定，等待经理转正", Toast.LENGTH_SHORT).show()
+                    onRefresh()
+                    onDismiss()
+                } else {
+                    Toast.makeText(context, "失败: ${res.message}", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "网络错误: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -279,7 +298,11 @@ fun CustomerIntentConfirmContent(
                         DropdownMenuItem(
                             text = { Text(manager.nickname) },
                             onClick = {
+                                // ✨ 调试：在这里打印一下，看能不能拿到 ID
+                                android.util.Log.d("API", "用户选择了经理: ${manager.nickname}, 其ID为: ${manager.id}")
+
                                 selectedManagerName = manager.nickname
+                                selectedManagerId = manager.id  // ✨ 确保这一行执行了
                                 expanded = false
                             }
                         )
@@ -334,7 +357,6 @@ fun CustomerIntentConfirmContent(
         Spacer(Modifier.height(40.dp))
     }
 
-    // --- AI 智能确认对话框：修正了 image_c174c9.jpg 中的语法错误 ---
     if (showAiConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showAiConfirmDialog = false },
@@ -349,11 +371,10 @@ fun CustomerIntentConfirmContent(
             dismissButton = {
                 TextButton(onClick = { showAiConfirmDialog = false }) { Text("再去填填") }
             }
-        ) // 确保这里闭合，不要有重复的 title 或 text 块
+        )
     }
 }
 
-// ✨ 确保你的文件末尾有这个组件定义，否则会报 Unresolved reference
 @Composable
 fun IntentTextField(label: String, value: String, isLocked: Boolean, onValueChange: (String) -> Unit) {
     OutlinedTextField(
