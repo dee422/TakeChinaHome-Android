@@ -101,8 +101,9 @@ interface ApiService {
     // ✨ 新版意向卷宗系统 (新航道)
     @GET("get_customer_intent_orders.php")
     suspend fun getRealtimeOrders(
-        @Query("email") email: String
-    ): ApiResponse<List<Order>> // 这里现在不会报错了
+        @Query("email") email: String,
+        @Query("type") type: String // 新增这一行
+    ): ApiResponse<List<Order>>
 
     @FormUrlEncoded
     @POST("delete_order_customer.php")
