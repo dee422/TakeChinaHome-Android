@@ -125,6 +125,11 @@ interface ApiService {
 
     @GET("get_managers.php")
     suspend fun getManagers(): ApiResponse<List<Manager>>
+
+    @GET("get_ai_suggestion.php")
+    suspend fun getAiSuggestion(
+        @Query("order_id") orderId: Int
+    ): ApiResponse<String>
 }
 
 // --- 数据类定义 ---

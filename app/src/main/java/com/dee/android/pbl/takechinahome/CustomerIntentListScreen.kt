@@ -226,6 +226,10 @@ fun CustomerIntentConfirmContent(
     var expanded by remember { mutableStateOf(false) }
     var showAiConfirmDialog by remember { mutableStateOf(false) }
 
+    // ✨ 新增：用于实时显示拉取到的 AI 建议
+    var currentAiSuggestion by remember { mutableStateOf(order.aiSuggestion ?: "") }
+
+    // 原有的经理列表获取逻辑
     LaunchedEffect(Unit) {
         try {
             val res = RetrofitClient.instance.getManagers()
@@ -238,6 +242,19 @@ fun CustomerIntentConfirmContent(
                 }
             }
         } catch (e: Exception) { /* log */ }
+    }
+
+    // ✨ 新增：AI 建议自动获取逻辑
+    // 如果数据库中没有建议且订单未锁定，则自动触发
+    LaunchedEffect(order.id) {
+        if (currentAiSuggestion.isBlank() && !isLocked && !isFormal) {
+            try {
+                val res = RetrofitClient.instance.getAiSuggestion(order.id)
+                if (res.success && res.data != null) {
+                    currentAiSuggestion = res.data
+                }
+            } catch (e: Exception) { /* 静默失败 */ }
+        }
     }
 
     val performSubmit = {
@@ -301,15 +318,15 @@ fun CustomerIntentConfirmContent(
             }
         }
 
-        // AI 建议仅在意向未锁定时显示
-        if (!order.aiSuggestion.isNullOrBlank() && !isLocked && !isFormal) {
+        // ✨ 逻辑修正：优先展示 currentAiSuggestion
+        if (currentAiSuggestion.isNotBlank() && !isLocked && !isFormal) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth()
             ) {
                 Text(
-                    text = "💡 AI 建议：${order.aiSuggestion}",
+                    text = "💡 AI 建议：$currentAiSuggestion",
                     modifier = Modifier.padding(12.dp),
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.primary
